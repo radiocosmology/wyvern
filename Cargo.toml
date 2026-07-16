@@ -8,13 +8,22 @@ name = "interprs"
 crate-type = ["cdylib"]
 
 [dependencies]
-ndarray = "0.17.2"
-pyo3 = { version = "0.29.0", features = ["abi3-py313"] }
+eyre = "0.6.12"
+ndarray = { version = "0.17.2", features = ["rayon"] }
+numpy = "0.29.0"
+pyo3 = { version = "0.29.0", features = ["extension-module", "eyre"] }
+rayon = "1.12.0"
 
 [profile.release]
 opt-level = 3
 codegen-units = 1
 lto = "fat"
+panic = "abort"
+
+[profile.release-with-debug-info]
+inherits = "release"
+lto = "thin"
+debug-assertions = true
 
 [lints.clippy]
 # Enable all pedantic warnings
