@@ -19,13 +19,13 @@ use crate::linear::interp_last_ax_lin;
 #[allow(clippy::pedantic, reason = "required for numpy interop")]
 #[allow(clippy::type_complexity, reason = "required for numpy interop")]
 #[pyfunction]
-pub fn interp_last_axis_linear<'py>(
+pub fn interpolate_linear<'py>(
     py: Python<'py>,
     x_in: PyReadonlyArray1<f64>,
     x_out: PyReadonlyArray1<f64>,
     y_in: PyReadonlyArray2<f64>,
-    w_in: PyReadonlyArray2<u8>,
-) -> eyre::Result<(Bound<'py, PyArray2<f64>>, Bound<'py, PyArray2<u8>>)> {
+    w_in: PyReadonlyArray2<f64>,
+) -> eyre::Result<(Bound<'py, PyArray2<f64>>, Bound<'py, PyArray2<f64>>)> {
     let x_in_sl = x_in.as_slice()?;
     let x_out_sl = x_out.as_slice()?;
 
@@ -38,7 +38,7 @@ pub fn interp_last_axis_linear<'py>(
     // allocate output arrays directly on the numpy heap, so
     // no intermediate rust-owned buffer is copied afterwards.
     let y_out = PyArray2::<f64>::zeros(py, (rows, n_out), false);
-    let w_out = PyArray2::<u8>::zeros(py, (rows, n_out), false);
+    let w_out = PyArray2::<f64>::zeros(py, (rows, n_out), false);
 
     let y_out_view = unsafe { y_out.as_array_mut() };
     let w_out_view = unsafe { w_out.as_array_mut() };
