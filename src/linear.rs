@@ -49,6 +49,8 @@ impl InterpolationPlanLinear {
         let mut lo: usize = 0;
         let lo_max: usize = n_in - 2;
 
+        let delta = crate::utils::median_abs_diff(x_in);
+
         for &xo in x_out {
             // advance the pointer while the next pair still brackets xo,
             // or we're at the last valid pair
@@ -65,20 +67,20 @@ impl InterpolationPlanLinear {
                 (x_in[lo], x_in[lo + 1])
             };
 
-            let delta = b - a;
-            if delta <= 0.0 {
+            let span = b - a;
+            if span <= 0.0 {
                 eyre::bail!("inputs are unsorted or repeated!");
             }
 
             // check if this is more than one input spacing from
             // either input sample
-            let v = f32::from(b - xo < delta && xo - a < delta);
+            let v = f32::from(b - xo <= delta && xo - a <= delta);
 
             // interpolation indices
             i0.push(lo);
             i1.push(lo + 1);
             // weight coefficient
-            c1.push((xo - a) / delta);
+            c1.push((xo - a) / span);
             // mask
             valid.push(v);
         }
