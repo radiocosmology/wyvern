@@ -9,6 +9,13 @@ use rayon::prelude::*;
 struct ScratchSlot(UnsafeCell<Vec<f32>>);
 unsafe impl Sync for ScratchSlot {}
 
+fn make_scratch_pool(n_in: usize) -> Vec<ScratchSlot> {
+    let num_threads = rayon::current_num_threads();
+    (0..num_threads)
+        .map(|_| ScratchSlot(UnsafeCell::new(vec![0.0_f32; n_in])))
+        .collect()
+}
+
 /// Precomputed interpolation plan for mapping input
 /// and output samples.
 struct InterpolationPlanLinear {
@@ -85,9 +92,10 @@ impl InterpolationPlanLinear {
     }
 }
 
-/// Apply a pre-computed plan to a single array row.
+/// Apply a pre-computed plan to a single array row
+/// with accompanied inverse variance weights.
 #[inline]
-fn interp_row(
+fn interp_row_with_variance(
     plan: &InterpolationPlanLinear,
     y_in: &ArrayView1<f32>,
     weight_in: &ArrayView1<f32>,
@@ -118,13 +126,13 @@ fn interp_row(
             let keep = *plan.valid.get_unchecked(j);
             // interpolation coefficients
             let s1 = *plan.c1.get_unchecked(j);
-            let s0 = 1.0 - s1;
 
             // interpolate data onto the target sample
             let a = *y_in.uget(i0);
             let b = *y_in.uget(i1);
-            *y_out.uget_mut(j) = (b - a).mul_add(s1, a);
+            *y_out.uget_mut(j) = keep * (b - a).mul_add(s1, a);
 
+            let s0 = 1.0 - s1;
             // propagate weights and masking
             let var_a = *var_scratch.get_unchecked(i0);
             let var_b = *var_scratch.get_unchecked(i1);
@@ -138,9 +146,37 @@ fn interp_row(
     }
 }
 
-/// Interpolate over the last axis of an array.
+/// Apply a pre-computed plan to a single array row.
 #[inline]
-pub fn interp_last_ax_lin(
+fn interp_row(
+    plan: &InterpolationPlanLinear,
+    y_in: &ArrayView1<f32>,
+    mut y_out: ArrayViewMut1<f32>,
+) {
+    let n_out = plan.len();
+
+    debug_assert_eq!(n_out, y_out.len());
+
+    unsafe {
+        for j in 0..n_out {
+            // extract the interpolation indices and weight
+            let i0 = *plan.i0.get_unchecked(j);
+            let i1 = *plan.i1.get_unchecked(j);
+            let keep = *plan.valid.get_unchecked(j);
+            // interpolation coefficients
+            let s1 = *plan.c1.get_unchecked(j);
+
+            // interpolate data onto the target sample
+            let a = *y_in.uget(i0);
+            let b = *y_in.uget(i1);
+            *y_out.uget_mut(j) = keep * (b - a).mul_add(s1, a);
+        }
+    }
+}
+
+/// Interpolate over the last axis of a real array.
+#[inline]
+pub fn interp_last_ax_real(
     x_in: &[f32],
     x_out: &[f32],
     y_in: &ArrayView2<f32>,
@@ -151,11 +187,8 @@ pub fn interp_last_ax_lin(
     let plan = InterpolationPlanLinear::build(x_in, x_out)?;
     // update the scratch buffer size
     let n_in = y_in.ncols();
-    // one Vec<f32> per worker thread
-    let num_threads = rayon::current_num_threads();
-    let scratch_pool: Vec<ScratchSlot> = (0..num_threads)
-        .map(|_| ScratchSlot(UnsafeCell::new(vec![0.0_f32; n_in])))
-        .collect();
+    let scratch_pool = make_scratch_pool(n_in);
+    let num_threads = scratch_pool.len();
 
     // iterate over the 0th axis and interpolate the 1st
     // (contiguous) axis
@@ -169,7 +202,47 @@ pub fn interp_last_ax_lin(
             // each thread owns one slot in the scratch buffer
             let sslot = rayon::current_thread_index().unwrap_or(0) % num_threads;
             let buf: &mut Vec<f32> = unsafe { &mut *scratch_pool[sslot].0.get() };
-            interp_row(&plan, &yi, &wi, buf, yo, wo);
+            interp_row_with_variance(&plan, &yi, &wi, buf, yo, wo);
+        });
+
+    Ok(())
+}
+
+/// Interpolate over the last axis of a complex array
+#[allow(clippy::too_many_arguments, reason = "inline helper function")]
+#[inline]
+pub fn interp_last_ax_complex(
+    x_in: &[f32],
+    x_out: &[f32],
+    y_re_in: &ArrayView2<f32>,
+    y_im_in: &ArrayView2<f32>,
+    weight_in: &ArrayView2<f32>,
+    mut y_re_out: ArrayViewMut2<f32>,
+    mut y_im_out: ArrayViewMut2<f32>,
+    mut weight_out: ArrayViewMut2<f32>,
+) -> eyre::Result<()> {
+    let plan = InterpolationPlanLinear::build(x_in, x_out)?;
+    // update the scratch buffer size
+    let n_in = y_re_in.ncols();
+    let scratch_pool = make_scratch_pool(n_in);
+    let num_threads = scratch_pool.len();
+
+    // iterate over the 0th axis and interpolate the 1st
+    // (contiguous) axis
+    #[allow(clippy::indexing_slicing, reason = "buffer size explicitly set")]
+    Zip::from(y_re_in.rows())
+        .and(y_im_in.rows())
+        .and(weight_in.rows())
+        .and(y_re_out.rows_mut())
+        .and(y_im_out.rows_mut())
+        .and(weight_out.rows_mut())
+        .into_par_iter()
+        .for_each(|(yre_i, yim_i, wi, yre_o, yim_o, wo)| {
+            // each thread owns one slot in the scratch buffer
+            let sslot = rayon::current_thread_index().unwrap_or(0) % num_threads;
+            let buf: &mut Vec<f32> = unsafe { &mut *scratch_pool[sslot].0.get() };
+            interp_row_with_variance(&plan, &yre_i, &wi, buf, yre_o, wo);
+            interp_row(&plan, &yim_i, yim_o);
         });
 
     Ok(())

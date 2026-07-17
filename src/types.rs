@@ -4,10 +4,13 @@ use numpy::Complex32;
 
 /// zero-copy reinterpret of a Complex32 buffer to two interleaved
 /// Float32 buffers.
-unsafe fn split_complex_view(view: ArrayView2<Complex32>) -> (ArrayView2<f32>, ArrayView2<f32>) {
+pub unsafe fn split_complex_view<'a>(
+    view: &ArrayView2<'a, Complex32>,
+) -> (ArrayView2<'a, f32>, ArrayView2<'a, f32>) {
     let (rows, cols) = view.dim();
-    let row_stride = (view.strides()[0] * 2) as usize;
-    let ptr = view.as_ptr() as *const f32;
+    #[allow(clippy::indexing_slicing, reason = "stride for index 0 must exist")]
+    let row_stride = (view.strides()[0] * 2).cast_unsigned();
+    let ptr = view.as_ptr().cast::<f32>();
     let real = unsafe { ArrayView2::from_shape_ptr((rows, cols).strides((row_stride, 2)), ptr) };
     let imag =
         unsafe { ArrayView2::from_shape_ptr((rows, cols).strides((row_stride, 2)), ptr.add(1)) };
@@ -15,11 +18,12 @@ unsafe fn split_complex_view(view: ArrayView2<Complex32>) -> (ArrayView2<f32>, A
     (real, imag)
 }
 
-unsafe fn split_complex_view_mut(
-    view: ArrayViewMut2<Complex32>,
-) -> (ArrayViewMut2<f32>, ArrayViewMut2<f32>) {
+pub unsafe fn split_complex_view_mut<'a>(
+    view: &ArrayViewMut2<'a, Complex32>,
+) -> (ArrayViewMut2<'a, f32>, ArrayViewMut2<'a, f32>) {
     let (rows, cols) = view.dim();
-    let row_stride = (view.strides()[0] * 2) as usize;
+    #[allow(clippy::indexing_slicing, reason = "stride for index 0 must exist")]
+    let row_stride = (view.strides()[0] * 2).cast_unsigned();
     let ptr = view.as_ptr() as *mut f32;
     let real = unsafe { ArrayViewMut2::from_shape_ptr((rows, cols).strides((row_stride, 2)), ptr) };
     let imag =
