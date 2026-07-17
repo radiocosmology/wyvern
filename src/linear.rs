@@ -36,8 +36,8 @@ impl InterpolationPlanLinear {
         let n_out = x_out.len();
         let n_in = x_in.len();
 
-        assert!(n_in >= 2, "minimum 2 input samples are required!");
-        assert!(n_out >= 1, "minimum 1 output sample is required!");
+        debug_assert!(n_in >= 2, "minimum 2 input samples are required!");
+        debug_assert!(n_out >= 1, "minimum 1 output sample is required!");
 
         let mut i0 = Vec::<usize>::with_capacity(n_out);
         let mut i1 = Vec::<usize>::with_capacity(n_out);
@@ -74,7 +74,8 @@ impl InterpolationPlanLinear {
 
             // check if this is more than one input spacing from
             // either input sample
-            let v = f32::from(b - xo <= delta && xo - a <= delta);
+            let distant = (b - xo).abs() > delta || (a - xo).abs() > delta;
+            let v = f32::from(!distant);
 
             // interpolation indices
             i0.push(lo);
@@ -125,25 +126,25 @@ fn interp_row_with_variance(
             // extract the interpolation indices and weight
             let i0 = *plan.i0.get_unchecked(j);
             let i1 = *plan.i1.get_unchecked(j);
-            let keep = *plan.valid.get_unchecked(j);
             // interpolation coefficients
             let s1 = *plan.c1.get_unchecked(j);
 
             // interpolate data onto the target sample
             let a = *y_in.uget(i0);
             let b = *y_in.uget(i1);
-            *y_out.uget_mut(j) = keep * (b - a).mul_add(s1, a);
+            *y_out.uget_mut(j) = (b - a).mul_add(s1, a);
 
-            let s0 = 1.0 - s1;
             // propagate weights and masking
             let var_a = *var_scratch.get_unchecked(i0);
             let var_b = *var_scratch.get_unchecked(i1);
+            let valid = *plan.valid.get_unchecked(j);
+            let s0 = 1.0 - s1;
             // NaN guard: (0.0 * inf) -> NaN -> clamped to 0.0
             // for invalid items
             let c0 = (s0 * s0 * var_a).max(0.0);
             let c1 = (s1 * s1 * var_b).max(0.0);
             // keep is either 1.0 or 0.0
-            *weight_out.uget_mut(j) = keep / (c0 + c1);
+            *weight_out.uget_mut(j) = valid / (c0 + c1);
         }
     }
 }
@@ -164,14 +165,13 @@ fn interp_row(
             // extract the interpolation indices and weight
             let i0 = *plan.i0.get_unchecked(j);
             let i1 = *plan.i1.get_unchecked(j);
-            let keep = *plan.valid.get_unchecked(j);
             // interpolation coefficients
             let s1 = *plan.c1.get_unchecked(j);
 
             // interpolate data onto the target sample
             let a = *y_in.uget(i0);
             let b = *y_in.uget(i1);
-            *y_out.uget_mut(j) = keep * (b - a).mul_add(s1, a);
+            *y_out.uget_mut(j) = (b - a).mul_add(s1, a);
         }
     }
 }
