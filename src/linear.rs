@@ -4,15 +4,15 @@ use std::cell::UnsafeCell;
 use ndarray::{ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2, Zip};
 use rayon::prelude::*;
 
-/// Wrapper to allow &mut access into once Vec<f32> slot from
+/// Wrapper to allow &mut access into once Vec<f64> slot from
 /// multiple threads without a mutex.
-struct ScratchSlot(UnsafeCell<Vec<f32>>);
+struct ScratchSlot(UnsafeCell<Vec<f64>>);
 unsafe impl Sync for ScratchSlot {}
 
 fn make_scratch_pool(n_in: usize) -> Vec<ScratchSlot> {
     let num_threads = rayon::current_num_threads();
     (0..num_threads)
-        .map(|_| ScratchSlot(UnsafeCell::new(vec![0.0_f32; n_in])))
+        .map(|_| ScratchSlot(UnsafeCell::new(vec![0.0_f64; n_in])))
         .collect()
 }
 
@@ -102,7 +102,7 @@ fn interp_row_with_variance(
     plan: &InterpolationPlanLinear,
     y_in: &ArrayView1<f32>,
     weight_in: &ArrayView1<f32>,
-    var_scratch: &mut [f32],
+    var_scratch: &mut [f64],
     mut y_out: ArrayViewMut1<f32>,
     mut weight_out: ArrayViewMut1<f32>,
 ) {
@@ -119,7 +119,7 @@ fn interp_row_with_variance(
         // 1.0 / 0.0 == +inf under IEEE754, no panic, will revert to 0.0
         // when re-inverted to weights
         for k in 0..n_in {
-            *var_scratch.get_unchecked_mut(k) = 1.0 / *weight_in.uget(k);
+            *var_scratch.get_unchecked_mut(k) = 1.0 / f64::from(*weight_in.uget(k));
         }
 
         for j in 0..n_out {
@@ -138,13 +138,20 @@ fn interp_row_with_variance(
             let var_a = *var_scratch.get_unchecked(i0);
             let var_b = *var_scratch.get_unchecked(i1);
             let valid = *plan.valid.get_unchecked(j);
-            let s0 = 1.0 - s1;
+            // use f64 operations regardless of input type
+            let s164 = f64::from(s1);
+            let s064 = 1.0 - s164;
             // NaN guard: (0.0 * inf) -> NaN -> clamped to 0.0
             // for invalid items
-            let c0 = (s0 * s0 * var_a).max(0.0);
-            let c1 = (s1 * s1 * var_b).max(0.0);
+            let c0 = (s064 * s064 * var_a).max(0.0);
+            let c1 = (s164 * s164 * var_b).max(0.0);
             // keep is either 1.0 or 0.0
-            *weight_out.uget_mut(j) = valid / (c0 + c1);
+            #[allow(
+                clippy::cast_possible_truncation,
+                reason = "truncation is ok in result"
+            )]
+            let vo = (c0 + c1) as f32;
+            *weight_out.uget_mut(j) = valid / vo;
         }
     }
 }
@@ -203,7 +210,7 @@ pub fn interp_last_ax_real(
         .for_each(|(yi, wi, yo, wo)| {
             // each thread owns one slot in the scratch buffer
             let sslot = rayon::current_thread_index().unwrap_or(0) % num_threads;
-            let buf: &mut Vec<f32> = unsafe { &mut *scratch_pool[sslot].0.get() };
+            let buf: &mut Vec<f64> = unsafe { &mut *scratch_pool[sslot].0.get() };
             interp_row_with_variance(&plan, &yi, &wi, buf, yo, wo);
         });
 
@@ -242,7 +249,7 @@ pub fn interp_last_ax_complex(
         .for_each(|(yre_i, yim_i, wi, yre_o, yim_o, wo)| {
             // each thread owns one slot in the scratch buffer
             let sslot = rayon::current_thread_index().unwrap_or(0) % num_threads;
-            let buf: &mut Vec<f32> = unsafe { &mut *scratch_pool[sslot].0.get() };
+            let buf: &mut Vec<f64> = unsafe { &mut *scratch_pool[sslot].0.get() };
             interp_row_with_variance(&plan, &yre_i, &wi, buf, yre_o, wo);
             interp_row(&plan, &yim_i, yim_o);
         });
