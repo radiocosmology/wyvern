@@ -4,9 +4,9 @@ use std::cell::UnsafeCell;
 use ndarray::{ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2, Zip};
 use rayon::prelude::*;
 
-/// Wrapper to allow &mut access into once Vec<f64> slot from
+/// Wrapper to allow &mut access into once Vec<f32> slot from
 /// multiple threads without a mutex.
-struct ScratchSlot(UnsafeCell<Vec<f64>>);
+struct ScratchSlot(UnsafeCell<Vec<f32>>);
 unsafe impl Sync for ScratchSlot {}
 
 /// Precomputed interpolation plan for mapping input
@@ -17,15 +17,15 @@ struct InterpolationPlanLinear {
     // upper brackeet index for input
     i1: Vec<usize>,
     // interpolation coefficient for i1 sample (w0 = 1 - w1)
-    c1: Vec<f64>,
+    c1: Vec<f32>,
     // mask for valid samples. 1.0 if valid, 0.0 otherwise
-    valid: Vec<f64>,
+    valid: Vec<f32>,
 }
 
 impl InterpolationPlanLinear {
     /// ``x_in``: sorted, arbitrary spacing, len >= 2
     /// ``x_out``: sorted, uniform spacing, len >= 1
-    pub fn build(x_in: &[f64], x_out: &[f64]) -> eyre::Result<Self> {
+    pub fn build(x_in: &[f32], x_out: &[f32]) -> eyre::Result<Self> {
         let n_out = x_out.len();
         let n_in = x_in.len();
 
@@ -34,8 +34,8 @@ impl InterpolationPlanLinear {
 
         let mut i0 = Vec::<usize>::with_capacity(n_out);
         let mut i1 = Vec::<usize>::with_capacity(n_out);
-        let mut c1 = Vec::<f64>::with_capacity(n_out);
-        let mut valid = Vec::<f64>::with_capacity(n_out);
+        let mut c1 = Vec::<f32>::with_capacity(n_out);
+        let mut valid = Vec::<f32>::with_capacity(n_out);
 
         // both inputs are sorted, so step only advances forward. error
         // is eventually returned if this assumption fails
@@ -65,7 +65,7 @@ impl InterpolationPlanLinear {
 
             // check if this is more than one input spacing from
             // either input sample
-            let v = f64::from(b - xo < delta && xo - a < delta);
+            let v = f32::from(b - xo < delta && xo - a < delta);
 
             // interpolation indices
             i0.push(lo);
@@ -89,11 +89,11 @@ impl InterpolationPlanLinear {
 #[inline]
 fn interp_row(
     plan: &InterpolationPlanLinear,
-    y_in: &ArrayView1<f64>,
-    weight_in: &ArrayView1<f64>,
-    var_scratch: &mut [f64],
-    mut y_out: ArrayViewMut1<f64>,
-    mut weight_out: ArrayViewMut1<f64>,
+    y_in: &ArrayView1<f32>,
+    weight_in: &ArrayView1<f32>,
+    var_scratch: &mut [f32],
+    mut y_out: ArrayViewMut1<f32>,
+    mut weight_out: ArrayViewMut1<f32>,
 ) {
     let n_in = y_in.len();
     let n_out = plan.len();
@@ -141,20 +141,20 @@ fn interp_row(
 /// Interpolate over the last axis of an array.
 #[inline]
 pub fn interp_last_ax_lin(
-    x_in: &[f64],
-    x_out: &[f64],
-    y_in: &ArrayView2<f64>,
-    weight_in: &ArrayView2<f64>,
-    mut y_out: ArrayViewMut2<f64>,
-    mut weight_out: ArrayViewMut2<f64>,
+    x_in: &[f32],
+    x_out: &[f32],
+    y_in: &ArrayView2<f32>,
+    weight_in: &ArrayView2<f32>,
+    mut y_out: ArrayViewMut2<f32>,
+    mut weight_out: ArrayViewMut2<f32>,
 ) -> eyre::Result<()> {
     let plan = InterpolationPlanLinear::build(x_in, x_out)?;
     // update the scratch buffer size
     let n_in = y_in.ncols();
-    // one Vec<f64> per worker thread
+    // one Vec<f32> per worker thread
     let num_threads = rayon::current_num_threads();
     let scratch_pool: Vec<ScratchSlot> = (0..num_threads)
-        .map(|_| ScratchSlot(UnsafeCell::new(vec![0.0_f64; n_in])))
+        .map(|_| ScratchSlot(UnsafeCell::new(vec![0.0_f32; n_in])))
         .collect();
 
     // iterate over the 0th axis and interpolate the 1st
@@ -168,7 +168,7 @@ pub fn interp_last_ax_lin(
         .for_each(|(yi, wi, yo, wo)| {
             // each thread owns one slot in the scratch buffer
             let sslot = rayon::current_thread_index().unwrap_or(0) % num_threads;
-            let buf: &mut Vec<f64> = unsafe { &mut *scratch_pool[sslot].0.get() };
+            let buf: &mut Vec<f32> = unsafe { &mut *scratch_pool[sslot].0.get() };
             interp_row(&plan, &yi, &wi, buf, yo, wo);
         });
 

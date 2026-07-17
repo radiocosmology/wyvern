@@ -3,6 +3,7 @@ use pyo3::prelude::*;
 
 mod linear;
 mod linear_py;
+mod types;
 
 use linear_py::interpolate_linear;
 
