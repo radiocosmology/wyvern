@@ -9,12 +9,16 @@ crate-type = ["cdylib"]
 
 [dependencies]
 eyre = "0.6.12"
+mimalloc = {version = "0.1.52", optional = true }
 ndarray = { version = "0.17.2", features = ["rayon"] }
 num-complex = "0.4.6"
 num-traits = "0.2.19"
 numpy = "0.29.0"
 pyo3 = { version = "0.29.0", features = ["extension-module", "eyre"] }
 rayon = "1.12.0"
+
+[features]
+mimalloc = ["dep:mimalloc"]
 
 [profile.release]
 opt-level = 3
