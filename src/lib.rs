@@ -6,12 +6,11 @@ mod linear_py;
 mod types;
 mod utils;
 
-use linear_py::interpolate_linear;
-
 /// Rust-based fast interpolation.
 #[pymodule]
 fn interprs(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(interpolate_linear, m)?)?;
+    m.add_function(wrap_pyfunction!(linear_py::interpolate_linear, m)?)?;
+    m.add_function(wrap_pyfunction!(linear_py::interpolate_linear_weighted, m)?)?;
 
     Ok(())
 }
