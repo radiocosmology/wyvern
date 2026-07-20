@@ -1,8 +1,8 @@
 //! Linear interpolation across the last axis.
-use std::cell::UnsafeCell;
-
 use ndarray::{ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2, Zip};
+use num_traits::Float;
 use rayon::prelude::*;
+use std::cell::UnsafeCell;
 
 /// Wrapper to allow &mut access into once Vec<f64> slot from
 /// multiple threads without a mutex.
@@ -24,15 +24,15 @@ struct InterpolationPlanLinear {
     // upper brackeet index for input
     i1: Vec<usize>,
     // interpolation coefficient for i1 sample (w0 = 1 - w1)
-    c1: Vec<f32>,
+    c1: Vec<f64>,
     // mask for valid samples. 1.0 if valid, 0.0 otherwise
-    valid: Vec<f32>,
+    valid: Vec<f64>,
 }
 
 impl InterpolationPlanLinear {
     /// ``x_in``: sorted, arbitrary spacing, len >= 2
     /// ``x_out``: sorted, uniform spacing, len >= 1
-    pub fn build(x_in: &[f32], x_out: &[f32]) -> eyre::Result<Self> {
+    pub fn build(x_in: &[f64], x_out: &[f64]) -> eyre::Result<Self> {
         let n_out = x_out.len();
         let n_in = x_in.len();
 
@@ -41,15 +41,15 @@ impl InterpolationPlanLinear {
 
         let mut i0 = Vec::<usize>::with_capacity(n_out);
         let mut i1 = Vec::<usize>::with_capacity(n_out);
-        let mut c1 = Vec::<f32>::with_capacity(n_out);
-        let mut valid = Vec::<f32>::with_capacity(n_out);
+        let mut c1 = Vec::<f64>::with_capacity(n_out);
+        let mut valid = Vec::<f64>::with_capacity(n_out);
 
         // both inputs are sorted, so step only advances forward. error
         // is eventually returned if this assumption fails
         let mut lo: usize = 0;
         let lo_max: usize = n_in - 2;
 
-        let delta = crate::utils::median_abs_diff(x_in);
+        let delta = crate::utils::median_abs_sample_spacing(x_in);
 
         for &xo in x_out {
             // advance the pointer while the next pair still brackets xo,
@@ -75,7 +75,7 @@ impl InterpolationPlanLinear {
             // check if this is more than one input spacing from
             // either input sample
             let distant = (b - xo).abs() > delta || (a - xo).abs() > delta;
-            let v = f32::from(!distant);
+            let v = f64::from(!distant);
 
             // interpolation indices
             i0.push(lo);
@@ -97,14 +97,15 @@ impl InterpolationPlanLinear {
 
 /// Apply a pre-computed plan to a single array row
 /// with accompanied inverse variance weights.
+#[allow(clippy::unwrap_used, reason = "type conversions guaranteed")]
 #[inline]
-fn interp_row_with_variance(
+fn interp_row_with_variance<T: Float, W: Float>(
     plan: &InterpolationPlanLinear,
-    y_in: &ArrayView1<f32>,
-    weight_in: &ArrayView1<f32>,
+    y_in: &ArrayView1<T>,
+    weight_in: &ArrayView1<W>,
     var_scratch: &mut [f64],
-    mut y_out: ArrayViewMut1<f32>,
-    mut weight_out: ArrayViewMut1<f32>,
+    mut y_out: ArrayViewMut1<T>,
+    mut weight_out: ArrayViewMut1<W>,
 ) {
     let n_in = y_in.len();
     let n_out = plan.len();
@@ -119,7 +120,8 @@ fn interp_row_with_variance(
         // 1.0 / 0.0 == +inf under IEEE754, no panic, will revert to 0.0
         // when re-inverted to weights
         for k in 0..n_in {
-            *var_scratch.get_unchecked_mut(k) = 1.0 / f64::from(*weight_in.uget(k));
+            let w = (*weight_in.uget(k)).to_f64().unwrap();
+            *var_scratch.get_unchecked_mut(k) = 1.0 / w;
         }
 
         for j in 0..n_out {
@@ -130,38 +132,33 @@ fn interp_row_with_variance(
             let s1 = *plan.c1.get_unchecked(j);
 
             // interpolate data onto the target sample
-            let a = *y_in.uget(i0);
-            let b = *y_in.uget(i1);
-            *y_out.uget_mut(j) = (b - a).mul_add(s1, a);
+            let a = (*y_in.uget(i0)).to_f64().unwrap();
+            let b = (*y_in.uget(i1)).to_f64().unwrap();
+            *y_out.uget_mut(j) = T::from((b - a).mul_add(s1, a)).unwrap();
 
             // propagate weights and masking
             let var_a = *var_scratch.get_unchecked(i0);
             let var_b = *var_scratch.get_unchecked(i1);
             let valid = *plan.valid.get_unchecked(j);
-            // use f64 operations regardless of input type
-            let s164 = f64::from(s1);
-            let s064 = 1.0 - s164;
+
+            let s0 = 1.0 - s1;
             // NaN guard: (0.0 * inf) -> NaN -> clamped to 0.0
             // for invalid items
-            let c0 = (s064 * s064 * var_a).max(0.0);
-            let c1 = (s164 * s164 * var_b).max(0.0);
+            let c0 = (s0 * s0 * var_a).max(0.0);
+            let c1 = (s1 * s1 * var_b).max(0.0);
             // keep is either 1.0 or 0.0
-            #[allow(
-                clippy::cast_possible_truncation,
-                reason = "truncation is ok in result"
-            )]
-            let vo = (c0 + c1) as f32;
-            *weight_out.uget_mut(j) = valid / vo;
+            *weight_out.uget_mut(j) = W::from(valid / (c0 + c1)).unwrap();
         }
     }
 }
 
 /// Apply a pre-computed plan to a single array row.
+#[allow(clippy::unwrap_used, reason = "type conversions guaranteed")]
 #[inline]
-fn interp_row(
+fn interp_row<T: Float>(
     plan: &InterpolationPlanLinear,
-    y_in: &ArrayView1<f32>,
-    mut y_out: ArrayViewMut1<f32>,
+    y_in: &ArrayView1<T>,
+    mut y_out: ArrayViewMut1<T>,
 ) {
     let n_out = plan.len();
 
@@ -176,22 +173,74 @@ fn interp_row(
             let s1 = *plan.c1.get_unchecked(j);
 
             // interpolate data onto the target sample
-            let a = *y_in.uget(i0);
-            let b = *y_in.uget(i1);
-            *y_out.uget_mut(j) = (b - a).mul_add(s1, a);
+            let a = (*y_in.uget(i0)).to_f64().unwrap();
+            let b = (*y_in.uget(i1)).to_f64().unwrap();
+            *y_out.uget_mut(j) = T::from((b - a).mul_add(s1, a)).unwrap();
         }
     }
 }
 
 /// Interpolate over the last axis of a real array.
 #[inline]
-pub fn interp_last_ax_real(
-    x_in: &[f32],
-    x_out: &[f32],
-    y_in: &ArrayView2<f32>,
-    weight_in: &ArrayView2<f32>,
-    mut y_out: ArrayViewMut2<f32>,
-    mut weight_out: ArrayViewMut2<f32>,
+pub fn interp_last_ax_real<T: Float + Send + Sync>(
+    x_in: &[f64],
+    x_out: &[f64],
+    y_in: &ArrayView2<T>,
+    mut y_out: ArrayViewMut2<T>,
+) -> eyre::Result<()> {
+    let plan = InterpolationPlanLinear::build(x_in, x_out)?;
+
+    // iterate over the 0th axis and interpolate the 1st
+    // (contiguous) axis
+    Zip::from(y_in.rows())
+        .and(y_out.rows_mut())
+        .into_par_iter()
+        .for_each(|(yi, yo)| {
+            interp_row(&plan, &yi, yo);
+        });
+
+    Ok(())
+}
+
+/// Interpolate over the last axis of a complex array
+/// with accompanying weights
+#[allow(clippy::too_many_arguments, reason = "inline helper function")]
+#[inline]
+pub fn interp_last_ax_complex<T: Float + Send + Sync>(
+    x_in: &[f64],
+    x_out: &[f64],
+    y_re_in: &ArrayView2<T>,
+    y_im_in: &ArrayView2<T>,
+    mut y_re_out: ArrayViewMut2<T>,
+    mut y_im_out: ArrayViewMut2<T>,
+) -> eyre::Result<()> {
+    let plan = InterpolationPlanLinear::build(x_in, x_out)?;
+
+    // iterate over the 0th axis and interpolate the 1st
+    // (contiguous) axis
+    Zip::from(y_re_in.rows())
+        .and(y_im_in.rows())
+        .and(y_re_out.rows_mut())
+        .and(y_im_out.rows_mut())
+        .into_par_iter()
+        .for_each(|(yre_i, yim_i, yre_o, yim_o)| {
+            interp_row(&plan, &yre_i, yre_o);
+            interp_row(&plan, &yim_i, yim_o);
+        });
+
+    Ok(())
+}
+
+/// Interpolate over the last axis of a real array
+/// with accompanying weights.
+#[inline]
+pub fn interp_last_ax_real_weighted<T: Float + Send + Sync, W: Float + Send + Sync>(
+    x_in: &[f64],
+    x_out: &[f64],
+    y_in: &ArrayView2<T>,
+    weight_in: &ArrayView2<W>,
+    mut y_out: ArrayViewMut2<T>,
+    mut weight_out: ArrayViewMut2<W>,
 ) -> eyre::Result<()> {
     let plan = InterpolationPlanLinear::build(x_in, x_out)?;
     // update the scratch buffer size
@@ -201,7 +250,6 @@ pub fn interp_last_ax_real(
 
     // iterate over the 0th axis and interpolate the 1st
     // (contiguous) axis
-    #[allow(clippy::indexing_slicing, reason = "buffer size explicitly set")]
     Zip::from(y_in.rows())
         .and(weight_in.rows())
         .and(y_out.rows_mut())
@@ -210,7 +258,9 @@ pub fn interp_last_ax_real(
         .for_each(|(yi, wi, yo, wo)| {
             // each thread owns one slot in the scratch buffer
             let sslot = rayon::current_thread_index().unwrap_or(0) % num_threads;
+            #[allow(clippy::indexing_slicing, reason = "buffer size explicitly set")]
             let buf: &mut Vec<f64> = unsafe { &mut *scratch_pool[sslot].0.get() };
+
             interp_row_with_variance(&plan, &yi, &wi, buf, yo, wo);
         });
 
@@ -218,17 +268,18 @@ pub fn interp_last_ax_real(
 }
 
 /// Interpolate over the last axis of a complex array
+/// with accompanying weights
 #[allow(clippy::too_many_arguments, reason = "inline helper function")]
 #[inline]
-pub fn interp_last_ax_complex(
-    x_in: &[f32],
-    x_out: &[f32],
-    y_re_in: &ArrayView2<f32>,
-    y_im_in: &ArrayView2<f32>,
-    weight_in: &ArrayView2<f32>,
-    mut y_re_out: ArrayViewMut2<f32>,
-    mut y_im_out: ArrayViewMut2<f32>,
-    mut weight_out: ArrayViewMut2<f32>,
+pub fn interp_last_ax_complex_weighted<T: Float + Send + Sync, W: Float + Send + Sync>(
+    x_in: &[f64],
+    x_out: &[f64],
+    y_re_in: &ArrayView2<T>,
+    y_im_in: &ArrayView2<T>,
+    weight_in: &ArrayView2<W>,
+    mut y_re_out: ArrayViewMut2<T>,
+    mut y_im_out: ArrayViewMut2<T>,
+    mut weight_out: ArrayViewMut2<W>,
 ) -> eyre::Result<()> {
     let plan = InterpolationPlanLinear::build(x_in, x_out)?;
     // update the scratch buffer size
@@ -238,7 +289,6 @@ pub fn interp_last_ax_complex(
 
     // iterate over the 0th axis and interpolate the 1st
     // (contiguous) axis
-    #[allow(clippy::indexing_slicing, reason = "buffer size explicitly set")]
     Zip::from(y_re_in.rows())
         .and(y_im_in.rows())
         .and(weight_in.rows())
@@ -249,7 +299,9 @@ pub fn interp_last_ax_complex(
         .for_each(|(yre_i, yim_i, wi, yre_o, yim_o, wo)| {
             // each thread owns one slot in the scratch buffer
             let sslot = rayon::current_thread_index().unwrap_or(0) % num_threads;
+            #[allow(clippy::indexing_slicing, reason = "buffer size explicitly set")]
             let buf: &mut Vec<f64> = unsafe { &mut *scratch_pool[sslot].0.get() };
+
             interp_row_with_variance(&plan, &yre_i, &wi, buf, yre_o, wo);
             interp_row(&plan, &yim_i, yim_o);
         });
