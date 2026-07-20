@@ -20,7 +20,6 @@ rayon = "1.12.0"
 opt-level = 3
 codegen-units = 1
 lto = "fat"
-panic = "abort"
 
 [profile.release-with-debug-info]
 inherits = "release"
