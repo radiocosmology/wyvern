@@ -51,6 +51,6 @@ jobs:
         run: cargo nextest run --profile ci --no-tests="warn"
       - name: Run unit tests in release
         run: cargo nextest run --profile ci --release --no-tests="warn"
-      - name: Run unit tests in release with all features
-        run: cargo nextest run --profile ci --release --all-features --no-tests="warn"
+      - name: Run unit tests in release with mimalloc feature
+        run: cargo nextest run --profile ci --release --features="mimalloc" --no-tests="warn"
 

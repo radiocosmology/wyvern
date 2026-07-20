@@ -5,6 +5,7 @@ build-backend = "maturin"
 [tool.maturin]
 profile = "release"
 editable-profile = "release-with-debug-info"
+features = ["mimalloc", "extension-module"]
 manifest-path = "Cargo.toml"
 frozen = false
 locked = false
