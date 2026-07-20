@@ -28,6 +28,7 @@ jobs:
           prefix-key: "${{ runner.os }}-rust wv"
       - run: cargo clippy -- -D warnings
       - run: cargo clippy --release -- -D warnings
+      - run: cargo clippy --all-features -- -D warnings
 
   unit-tests:
     strategy:
@@ -50,4 +51,6 @@ jobs:
         run: cargo nextest run --profile ci --no-tests="warn"
       - name: Run unit tests in release
         run: cargo nextest run --profile ci --release --no-tests="warn"
+      - name: Run unit tests in release with all features
+        run: cargo nextest run --profile ci --release --all-features --no-tests="warn"
 

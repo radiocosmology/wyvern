@@ -6,6 +6,10 @@ mod linear_py;
 mod types;
 mod utils;
 
+#[cfg(feature = "mimalloc")]
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 /// Rust-based fast interpolation.
 #[pymodule]
 fn interprs(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
