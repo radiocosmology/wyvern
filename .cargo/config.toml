@@ -2,4 +2,7 @@
 rustflags = ["-C", "target-cpu=native"]
 
 [target.aarch64-apple-darwin]
-rustflags = ["-C", "link-arg=-ld_new"]
+rustflags = [
+  "-C", "link-args=-undefined",
+  "-C", "link_args=dynamic_lookup",
+]
