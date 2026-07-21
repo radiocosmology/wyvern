@@ -5,7 +5,7 @@ build-backend = "maturin"
 [tool.maturin]
 profile = "release"
 editable-profile = "release-with-debug-info"
-features = ["mimalloc", "extension-module"]
+features = ["mimalloc", "extension-module", "pyo3/experimental-inspect"]
 manifest-path = "Cargo.toml"
 frozen = false
 locked = false
