@@ -17,7 +17,7 @@ fn interpolate_real<'py, T>(
     x_in: &[f64],
     x_out: &[f64],
     y_in: &PyReadonlyArray2<'py, T>,
-) -> PyResult<Py<PyAny>>
+) -> PyResult<Py<PyUntypedArray>>
 where
     T: Float + Element + Sync + Send,
 {
@@ -34,7 +34,7 @@ where
         crate::linear::interp_last_ax_real(x_in, x_out, &y_in_view, y_out_view)
     })?;
 
-    Ok(y_out.into_any().unbind())
+    Ok(y_out.into_any().cast_into::<PyUntypedArray>()?.unbind())
 }
 
 fn interpolate_real_weighted<'py, T, W>(
@@ -43,7 +43,7 @@ fn interpolate_real_weighted<'py, T, W>(
     x_out: &[f64],
     y_in: &PyReadonlyArray2<'py, T>,
     w_in: &PyReadonlyArray2<'py, W>,
-) -> PyResult<(Py<PyAny>, Py<PyAny>)>
+) -> PyResult<(Py<PyUntypedArray>, Py<PyUntypedArray>)>
 where
     T: Float + Element + Sync + Send,
     W: Float + Element + Sync + Send,
@@ -67,7 +67,10 @@ where
         )
     })?;
 
-    Ok((y_out.into_any().unbind(), w_out.into_any().unbind()))
+    Ok((
+        y_out.into_any().cast_into::<PyUntypedArray>()?.unbind(),
+        w_out.into_any().cast_into::<PyUntypedArray>()?.unbind(),
+    ))
 }
 
 fn interpolate_complex<'py, T>(
@@ -75,7 +78,7 @@ fn interpolate_complex<'py, T>(
     x_in: &[f64],
     x_out: &[f64],
     y_in: &PyReadonlyArray2<'py, Complex<T>>,
-) -> PyResult<Py<PyAny>>
+) -> PyResult<Py<PyUntypedArray>>
 where
     T: Float + Element + Sync + Send,
     Complex<T>: Element,
@@ -93,7 +96,7 @@ where
         crate::linear::interp_last_ax_complex(x_in, x_out, &yre_in, &yim_in, yre_out, yim_out)
     })?;
 
-    Ok(y_out.into_any().unbind())
+    Ok(y_out.into_any().cast_into::<PyUntypedArray>()?.unbind())
 }
 
 fn interpolate_complex_weighted<'py, T, W>(
@@ -102,7 +105,7 @@ fn interpolate_complex_weighted<'py, T, W>(
     x_out: &[f64],
     y_in: &PyReadonlyArray2<'py, Complex<T>>,
     w_in: &PyReadonlyArray2<'py, W>,
-) -> PyResult<(Py<PyAny>, Py<PyAny>)>
+) -> PyResult<(Py<PyUntypedArray>, Py<PyUntypedArray>)>
 where
     T: Float + Element + Sync + Send,
     W: Float + Element + Sync + Send,
@@ -127,7 +130,10 @@ where
         )
     })?;
 
-    Ok((y_out.into_any().unbind(), w_out.into_any().unbind()))
+    Ok((
+        y_out.into_any().cast_into::<PyUntypedArray>()?.unbind(),
+        w_out.into_any().cast_into::<PyUntypedArray>()?.unbind(),
+    ))
 }
 
 /// Linearly interpolate a 2D array.
@@ -147,7 +153,7 @@ pub fn interpolate_linear<'py>(
     x_in: &Bound<'py, PyUntypedArray>,
     x_out: &Bound<'py, PyUntypedArray>,
     y_in: &Bound<'py, PyUntypedArray>,
-) -> PyResult<Py<PyAny>> {
+) -> PyResult<Py<PyUntypedArray>> {
     // bounds checks, type checks, etc...
     require_ndim(y_in, "y_in", 2)?;
     require_ndim(x_in, "x_in", 1)?;
@@ -210,7 +216,7 @@ pub fn interpolate_linear_weighted<'py>(
     x_out: &Bound<'py, PyUntypedArray>,
     y_in: &Bound<'py, PyUntypedArray>,
     w_in: &Bound<'py, PyUntypedArray>,
-) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
+) -> PyResult<(Py<PyUntypedArray>, Py<PyUntypedArray>)> {
     // bounds checks, type checks, etc...
     require_ndim(y_in, "y_in", 2)?;
     require_ndim(w_in, "w_in", 2)?;
