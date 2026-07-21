@@ -4,7 +4,6 @@ use pyo3::prelude::*;
 mod linear;
 mod pylinear;
 mod pyutils;
-mod types;
 mod utils;
 
 #[cfg(feature = "mimalloc")]
