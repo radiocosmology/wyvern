@@ -123,14 +123,23 @@ where
 ///
 /// Parameters
 /// ----------
-/// ``x_in``, ``x_out`` : 1D float64 arrays (sorted; ``x_out`` should have uniform spacing)
-/// ``y_in``: 2D float array, shape (-1, ``n_in``)
+/// ``x_in``
+///     1D float64 sorted array with input sample indices
+/// ``x_out``
+///     1D float64 sorted array with output sample indices. Must
+///     have uniform spacing.
+/// ``y_in``
+///     2D float or complex float array to be interpolated.
+/// ``y_out``
+///     Optional 2D float or complex float array to store output.
+///     If this is None, a new array is allocated. Default is None.
 ///
 /// Returns
 /// -------
-/// ``y_out`` : 2D float array, shape (-1, ``n_out``)
+/// ``y_out``
+///     2D float or complex float array, shape (-1, ``n_out``)
 #[pyfunction]
-#[pyo3(signature = (x_in, x_out, y_in, y_out = None))]
+#[pyo3(signature = (x_in, x_out, y_in, *, y_out = None))]
 pub fn interpolate_linear<'py>(
     py: Python<'py>,
     x_in: &Bound<'py, PyUntypedArray>,
@@ -192,15 +201,31 @@ pub fn interpolate_linear<'py>(
 ///
 /// Parameters
 /// ----------
-/// ``x_in``, ``x_out`` : 1D float64 arrays (sorted; ``x_out`` should have uniform spacing)
-/// ``y_in``: 2D float array, shape (-1, ``n_in``)
-/// ``w_in`` : 2D float array, same shape as ``y_in``
+/// ``x_in``
+///     1D float64 sorted array with input sample indices
+/// ``x_out``
+///     1D float64 sorted array with output sample indices. Must
+///     have uniform spacing.
+/// ``y_in``
+///     2D float or complex float array to be interpolated.
+/// ``w_in``
+///     2D float array of inverse-variance sample weights. Weights are
+///     propagated by propagating variances and inverting the result.
+/// ``y_out``
+///     Optional 2D float or complex float array to store output.
+///     If this is None, a new array is allocated. Default is None.
+/// ``w_out``
+///     Optional 2D float array to store propagated weights.
+///     If this is None, a new array is allocated. Default is None.
 ///
 /// Returns
 /// -------
-/// ``y_out``,``w_out`` : 2D float arrays, shape (-1, ``n_out``)
+/// ``y_out``
+///     2D float or complex float array, shape (-1, ``n_out``)
+/// ``w_out``
+///     2D float array, shape (-1, ``n_out``)
 #[pyfunction]
-#[pyo3(signature = (x_in, x_out, y_in, w_in, y_out = None, w_out = None))]
+#[pyo3(signature = (x_in, x_out, y_in, w_in, *, y_out = None, w_out = None))]
 pub fn interpolate_linear_weighted<'py>(
     py: Python<'py>,
     x_in: &Bound<'py, PyUntypedArray>,

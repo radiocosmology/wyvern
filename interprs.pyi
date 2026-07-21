@@ -11,34 +11,69 @@ __all__ = [
 
 # Module: interprs
 def interpolate_linear(
-    x_in: numpy.ndarray, x_out: numpy.ndarray, y_in: numpy.ndarray
+    x_in: numpy.ndarray,
+    x_out: numpy.ndarray,
+    y_in: numpy.ndarray,
+    *,
+    y_out: numpy.ndarray | None = None,
 ) -> numpy.ndarray:
     """
     Linearly interpolate a 2D array.
 
     Parameters
     ----------
-    ``x_in``, ``x_out`` : 1D float64 arrays (sorted; ``x_out`` should have uniform spacing)
-    ``y_in``: 2D float array, shape (-1, ``n_in``)
+    ``x_in``
+    1D float64 sorted array with input sample indices
+    ``x_out``
+    1D float64 sorted array with output sample indices. Must
+    have uniform spacing.
+    ``y_in``
+    2D float or complex float array to be interpolated.
+    ``y_out``
+    Optional 2D float or complex float array to store output.
+    If this is None, a new array is allocated. Default is None.
 
     Returns
     -------
-    ``y_out`` : 2D float array, shape (-1, ``n_out``)
+    ``y_out``
+    2D float or complex float array, shape (-1, ``n_out``)
     """
 
 def interpolate_linear_weighted(
-    x_in: numpy.ndarray, x_out: numpy.ndarray, y_in: numpy.ndarray, w_in: numpy.ndarray
+    x_in: numpy.ndarray,
+    x_out: numpy.ndarray,
+    y_in: numpy.ndarray,
+    w_in: numpy.ndarray,
+    *,
+    y_out: numpy.ndarray | None = None,
+    w_out: numpy.ndarray | None = None,
 ) -> tuple[numpy.ndarray, numpy.ndarray]:
     """
     Linearly interpolate a 2D array with corresponding weights.
 
     Parameters
     ----------
-    ``x_in``, ``x_out`` : 1D float64 arrays (sorted; ``x_out`` should have uniform spacing)
-    ``y_in``: 2D float array, shape (-1, ``n_in``)
-    ``w_in`` : 2D float array, same shape as ``y_in``
+    ``x_in``
+    1D float64 sorted array with input sample indices
+    ``x_out``
+    1D float64 sorted array with output sample indices. Must
+    have uniform spacing.
+    ``y_in``
+    2D float or complex float array to be interpolated.
+    ``w_in``
+    2D float array of inverse-variance sample weights. Weights are
+    propagated by propagating variances and inverting the result.
+    ``y_out``
+    Optional 2D float or complex float array to store output.
+    If this is None, a new array is allocated. Default is None.
+    ``w_out``
+    Optional 2D float array to store propagated weights.
+    If this is None, a new array is allocated. Default is None.
 
     Returns
     -------
-    ``y_out``,``w_out`` : 2D float arrays, shape (-1, ``n_out``)
+    ``y_out``
+    2D float or complex float array, shape (-1, ``n_out``)
+    ``w_out``
+    2D float array, shape (-1, ``n_out``)
     """
