@@ -83,14 +83,14 @@ where
     T: Float + Element + Sync + Send,
     Complex<T>: Element,
 {
-    let (yre_in, yim_in) = unsafe { crate::types::split_complex_view(&y_in.as_array()) };
+    let (yre_in, yim_in) = unsafe { crate::utils::split_complex_view(&y_in.as_array()) };
 
     let rows = yre_in.nrows();
     let n_out = x_out.len();
 
     // allocate outputs and according views
     let y_out = PyArray2::<Complex<T>>::zeros(py, (rows, n_out), false);
-    let (yre_out, yim_out) = unsafe { crate::types::split_complex_view_mut(&y_out.as_array_mut()) };
+    let (yre_out, yim_out) = unsafe { crate::utils::split_complex_view_mut(&y_out.as_array_mut()) };
 
     py.detach(|| -> eyre::Result<()> {
         crate::linear::interp_last_ax_complex(x_in, x_out, &yre_in, &yim_in, yre_out, yim_out)
@@ -111,7 +111,7 @@ where
     W: Float + Element + Sync + Send,
     Complex<T>: Element,
 {
-    let (yre_in, yim_in) = unsafe { crate::types::split_complex_view(&y_in.as_array()) };
+    let (yre_in, yim_in) = unsafe { crate::utils::split_complex_view(&y_in.as_array()) };
     let w_in_view = w_in.as_array();
 
     let rows = w_in_view.nrows();
@@ -122,7 +122,7 @@ where
     let w_out = PyArray2::<W>::zeros(py, (rows, n_out), false);
 
     let w_out_view = unsafe { w_out.as_array_mut() };
-    let (yre_out, yim_out) = unsafe { crate::types::split_complex_view_mut(&y_out.as_array_mut()) };
+    let (yre_out, yim_out) = unsafe { crate::utils::split_complex_view_mut(&y_out.as_array_mut()) };
 
     py.detach(|| -> eyre::Result<()> {
         crate::linear::interp_last_ax_complex_weighted(
@@ -146,7 +146,6 @@ where
 /// Returns
 /// -------
 /// ``y_out`` : 2D float array, shape (-1, ``n_out``)
-#[allow(clippy::pedantic, reason = "required for numpy interop")]
 #[pyfunction]
 pub fn interpolate_linear<'py>(
     py: Python<'py>,
@@ -208,7 +207,6 @@ pub fn interpolate_linear<'py>(
 /// Returns
 /// -------
 /// ``y_out``,``w_out`` : 2D float arrays, shape (-1, ``n_out``)
-#[allow(clippy::pedantic, reason = "required for numpy interop")]
 #[pyfunction]
 pub fn interpolate_linear_weighted<'py>(
     py: Python<'py>,
