@@ -1,0 +1,18 @@
+format = ["ruff format", "ruff check --select I --fix"]
+
+[output]
+python_version = "3.14"
+add_header = true
+all_include_private = true
+
+[type_map]
+"numpy::PyUntypedArray" = "numpy.ndarray"
+"numpy::PyReadonlyArray1" = "numpy.ndarray"
+"numpy::PyReadonlyArray2" = "numpy.ndarray"
+
+[[add_content]]
+file = "interprs.pyi"
+location = "after-import-typing"
+content = """
+import numpy
+"""
