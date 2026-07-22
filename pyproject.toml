@@ -2,14 +2,46 @@
 requires = ["maturin>=1.0,<2.0"]
 build-backend = "maturin"
 
+[project]
+name = "interprs"
+dynamic = [
+  "version",
+  "description",
+  "readme",
+  "urls",
+  "authors",
+  "license",
+  "keywords",
+]
+requires-python = ">=3.12"
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+
 [tool.maturin]
+## Cargo options
+# uses release build with normal install, includes
+# debug info with editable install
 profile = "release"
 editable-profile = "release-with-debug-info"
+# builds as an extension module and uses a mildly
+# faster allocator
 features = ["mimalloc", "extension-module"]
+# Cargo manifest path
 manifest-path = "Cargo.toml"
+# Require Cargo.lock and cache are up to date
 frozen = false
+# Require cargo.lock is up to date
 locked = false
+## maturin options
 bindings = "pyo3"
 compatibility = "pypi"
 auditwheel = "repair"
+# strip library for minimum file size
 strip = true
