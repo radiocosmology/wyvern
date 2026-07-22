@@ -2,6 +2,13 @@
 name = "interprs"
 version = "0.2.0"
 edition = "2024"
+description = "A fast Rust extension for various numerical array algorithms"
+authors = ["Liam Gray <liam.gray@ubc.ca>"]
+license = "GPL-3.0-or-later"
+repository = "https://github.com/ljgray/interprs"
+documentation = "https://ljgray.github.io/interprs/"
+readme = "README.md"
+keywords = ["numpy", "rust", "pyo3"]
 
 [lib]
 name = "interprs"
@@ -16,7 +23,6 @@ num-traits = "0.2.19"
 numpy = "0.29.0"
 pyo3 = { version = "0.29.0", default-features = false, features = ["eyre"] }
 rayon = "1.12.0"
-
 
 [features]
 mimalloc = ["dep:mimalloc"]
