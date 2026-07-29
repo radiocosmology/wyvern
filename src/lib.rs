@@ -4,6 +4,7 @@ use pyo3::prelude::*;
 mod linear;
 mod pylinear;
 mod pyutils;
+mod types;
 mod utils;
 
 #[cfg(feature = "mimalloc")]
@@ -12,9 +13,8 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 /// Rust-based fast interpolation.
 #[pymodule]
-fn interprs(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(pylinear::interpolate_linear, m)?)?;
-    m.add_function(wrap_pyfunction!(pylinear::interpolate_linear_weighted, m)?)?;
+mod interprs {
 
-    Ok(())
+    #[pymodule_export]
+    use {super::pylinear::interpolate_linear, super::pylinear::interpolate_linear_weighted};
 }

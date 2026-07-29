@@ -1,6 +1,5 @@
 //! Python wrapper for linear interpolator.
 use num_complex::Complex;
-use num_traits::Float;
 use numpy::{
     Element, PyArrayDescrMethods, PyArrayMethods, PyReadonlyArray1, PyReadonlyArray2,
     PyReadwriteArray2, PyUntypedArray, PyUntypedArrayMethods, dtype,
@@ -9,6 +8,7 @@ use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 
 use crate::pyutils::{ensure_array, require_dtype, require_ndim};
+use crate::types::ParFloatLike;
 
 /// Separate methods for interpolating real and complex, weighted
 /// and unweighted
@@ -20,7 +20,7 @@ fn interpolate_real<'py, T>(
     mut y_out: PyReadwriteArray2<'py, T>,
 ) -> PyResult<Py<PyUntypedArray>>
 where
-    T: Float + Element + Sync + Send,
+    T: ParFloatLike + Element,
 {
     // Need views of arrays before detaching
     let y_in_view = y_in.as_array();
@@ -33,18 +33,17 @@ where
     Ok(y_out.as_untyped().clone().unbind())
 }
 
-fn interpolate_real_weighted<'py, T, W>(
+fn interpolate_real_weighted<'py, T>(
     py: Python<'py>,
     x_in: &[f64],
     x_out: &[f64],
     y_in: &PyReadonlyArray2<'py, T>,
-    w_in: &PyReadonlyArray2<'py, W>,
+    w_in: &PyReadonlyArray2<'py, T>,
     mut y_out: PyReadwriteArray2<'py, T>,
-    mut w_out: PyReadwriteArray2<'py, W>,
+    mut w_out: PyReadwriteArray2<'py, T>,
 ) -> PyResult<(Py<PyUntypedArray>, Py<PyUntypedArray>)>
 where
-    T: Float + Element + Sync + Send,
-    W: Float + Element + Sync + Send,
+    T: ParFloatLike + Element,
 {
     // views before detach
     let y_in_view = y_in.as_array();
@@ -73,7 +72,7 @@ fn interpolate_complex<'py, T>(
     mut y_out: PyReadwriteArray2<'py, Complex<T>>,
 ) -> PyResult<Py<PyUntypedArray>>
 where
-    T: Float + Element + Sync + Send,
+    T: ParFloatLike + Element,
     Complex<T>: Element,
 {
     // views before detach. Provides strided re/im views
@@ -87,18 +86,17 @@ where
     Ok(y_out.as_untyped().clone().unbind())
 }
 
-fn interpolate_complex_weighted<'py, T, W>(
+fn interpolate_complex_weighted<'py, T>(
     py: Python<'py>,
     x_in: &[f64],
     x_out: &[f64],
     y_in: &PyReadonlyArray2<'py, Complex<T>>,
-    w_in: &PyReadonlyArray2<'py, W>,
+    w_in: &PyReadonlyArray2<'py, T>,
     mut y_out: PyReadwriteArray2<'py, Complex<T>>,
-    mut w_out: PyReadwriteArray2<'py, W>,
+    mut w_out: PyReadwriteArray2<'py, T>,
 ) -> PyResult<(Py<PyUntypedArray>, Py<PyUntypedArray>)>
 where
-    T: Float + Element + Sync + Send,
-    W: Float + Element + Sync + Send,
+    T: ParFloatLike + Element,
     Complex<T>: Element,
 {
     let (yre_in, yim_in) = unsafe { crate::utils::split_complex_view(&y_in.as_array()) };
@@ -193,7 +191,7 @@ pub fn interpolate_linear<'py>(
     }
     Err(PyTypeError::new_err(format!(
         "'y' has unsupported type '{y_dtype}'. supported types are: \
-        float32, float64, complex32, complex64.",
+        float32, float64, complex64, complex128.",
     )))
 }
 
@@ -267,28 +265,14 @@ pub fn interpolate_linear_weighted<'py>(
         if y_dtype.is_equiv_to(&dtype::<f32>(py)) {
             let y_in: PyReadonlyArray2<f32> = y_in.extract()?;
             let y_out = ensure_array::<f32>(py, y_out, out_shape)?;
-            return interpolate_real_weighted::<f32, f32>(
-                py, x_in_sl, x_out_sl, &y_in, &w_in, y_out, w_out,
-            );
-        }
-        if y_dtype.is_equiv_to(&dtype::<f64>(py)) {
-            let y_in: PyReadonlyArray2<f64> = y_in.extract()?;
-            let y_out = ensure_array::<f64>(py, y_out, out_shape)?;
-            return interpolate_real_weighted::<f64, f32>(
+            return interpolate_real_weighted::<f32>(
                 py, x_in_sl, x_out_sl, &y_in, &w_in, y_out, w_out,
             );
         }
         if y_dtype.is_equiv_to(&dtype::<Complex<f32>>(py)) {
             let y_in: PyReadonlyArray2<Complex<f32>> = y_in.extract()?;
             let y_out = ensure_array::<Complex<f32>>(py, y_out, out_shape)?;
-            return interpolate_complex_weighted::<f32, f32>(
-                py, x_in_sl, x_out_sl, &y_in, &w_in, y_out, w_out,
-            );
-        }
-        if y_dtype.is_equiv_to(&dtype::<Complex<f64>>(py)) {
-            let y_in: PyReadonlyArray2<Complex<f64>> = y_in.extract()?;
-            let y_out = ensure_array::<Complex<f64>>(py, y_out, out_shape)?;
-            return interpolate_complex_weighted::<f64, f32>(
+            return interpolate_complex_weighted::<f32>(
                 py, x_in_sl, x_out_sl, &y_in, &w_in, y_out, w_out,
             );
         }
@@ -297,38 +281,25 @@ pub fn interpolate_linear_weighted<'py>(
         let w_in: PyReadonlyArray2<f64> = w_in.extract()?;
         let w_out = ensure_array::<f64>(py, w_out, out_shape)?;
 
-        if y_dtype.is_equiv_to(&dtype::<f32>(py)) {
-            let y_in: PyReadonlyArray2<f32> = y_in.extract()?;
-            let y_out = ensure_array::<f32>(py, y_out, out_shape)?;
-            return interpolate_real_weighted::<f32, f64>(
-                py, x_in_sl, x_out_sl, &y_in, &w_in, y_out, w_out,
-            );
-        }
         if y_dtype.is_equiv_to(&dtype::<f64>(py)) {
             let y_in: PyReadonlyArray2<f64> = y_in.extract()?;
             let y_out = ensure_array::<f64>(py, y_out, out_shape)?;
-            return interpolate_real_weighted::<f64, f64>(
-                py, x_in_sl, x_out_sl, &y_in, &w_in, y_out, w_out,
-            );
-        }
-        if y_dtype.is_equiv_to(&dtype::<Complex<f32>>(py)) {
-            let y_in: PyReadonlyArray2<Complex<f32>> = y_in.extract()?;
-            let y_out = ensure_array::<Complex<f32>>(py, y_out, out_shape)?;
-            return interpolate_complex_weighted::<f32, f64>(
+            return interpolate_real_weighted::<f64>(
                 py, x_in_sl, x_out_sl, &y_in, &w_in, y_out, w_out,
             );
         }
         if y_dtype.is_equiv_to(&dtype::<Complex<f64>>(py)) {
             let y_in: PyReadonlyArray2<Complex<f64>> = y_in.extract()?;
             let y_out = ensure_array::<Complex<f64>>(py, y_out, out_shape)?;
-            return interpolate_complex_weighted::<f64, f64>(
+            return interpolate_complex_weighted::<f64>(
                 py, x_in_sl, x_out_sl, &y_in, &w_in, y_out, w_out,
             );
         }
     }
     Err(PyTypeError::new_err(format!(
-        "Unsupported data types! `y`: {y_dtype}, `w`: {w_dtype}. \
+        "Unsupported data types or combination! `y`: {y_dtype}, `w`: {w_dtype}. \
         Supported data types are: float32, float64, complex64, complex128. \
-        Supported weight types are: float32, float64."
+        Supported weight types are: float32, float64. \
+        data and weight arrays must have matching bit depth."
     )))
 }
