@@ -1,8 +1,9 @@
 //! Linear interpolation across the last axis.
 use ndarray::{ArrayView1, ArrayView2, ArrayViewMut1, ArrayViewMut2, Zip};
-use num_traits::Float;
 use rayon::prelude::*;
 use std::cell::UnsafeCell;
+
+use crate::types::{FloatLike, ParFloatLike};
 
 /// Wrapper to allow &mut access into once Vec<f64> slot from
 /// multiple threads without a mutex.
@@ -97,15 +98,14 @@ impl InterpolationPlanLinear {
 
 /// Apply a pre-computed plan to a single array row
 /// with accompanied inverse variance weights.
-#[allow(clippy::unwrap_used, reason = "type conversions guaranteed")]
 #[inline]
-fn interp_row_with_variance<T: Float, W: Float>(
+fn interp_row_with_variance<T: FloatLike>(
     plan: &InterpolationPlanLinear,
     y_in: &ArrayView1<T>,
-    weight_in: &ArrayView1<W>,
+    weight_in: &ArrayView1<T>,
     var_scratch: &mut [f64],
     mut y_out: ArrayViewMut1<T>,
-    mut weight_out: ArrayViewMut1<W>,
+    mut weight_out: ArrayViewMut1<T>,
 ) {
     let n_in = y_in.len();
     let n_out = plan.len();
@@ -120,7 +120,7 @@ fn interp_row_with_variance<T: Float, W: Float>(
         // 1.0 / 0.0 == +inf under IEEE754, no panic, will revert to 0.0
         // when re-inverted to weights
         for k in 0..n_in {
-            let w = (*weight_in.uget(k)).to_f64().unwrap();
+            let w: f64 = (*weight_in.uget(k)).as_();
             *var_scratch.get_unchecked_mut(k) = 1.0 / w;
         }
 
@@ -132,9 +132,9 @@ fn interp_row_with_variance<T: Float, W: Float>(
             let s1 = *plan.c1.get_unchecked(j);
 
             // interpolate data onto the target sample
-            let a = (*y_in.uget(i0)).to_f64().unwrap();
-            let b = (*y_in.uget(i1)).to_f64().unwrap();
-            *y_out.uget_mut(j) = T::from((b - a).mul_add(s1, a)).unwrap();
+            let a: f64 = (*y_in.uget(i0)).as_();
+            let b: f64 = (*y_in.uget(i1)).as_();
+            *y_out.uget_mut(j) = T::from_f64((b - a).mul_add(s1, a));
 
             // propagate weights and masking
             let var_a = *var_scratch.get_unchecked(i0);
@@ -147,15 +147,14 @@ fn interp_row_with_variance<T: Float, W: Float>(
             let c0 = (s0 * s0 * var_a).max(0.0);
             let c1 = (s1 * s1 * var_b).max(0.0);
             // keep is either 1.0 or 0.0
-            *weight_out.uget_mut(j) = W::from(valid / (c0 + c1)).unwrap();
+            *weight_out.uget_mut(j) = T::from_f64(valid / (c0 + c1));
         }
     }
 }
 
 /// Apply a pre-computed plan to a single array row.
-#[allow(clippy::unwrap_used, reason = "type conversions guaranteed")]
 #[inline]
-fn interp_row<T: Float>(
+fn interp_row<T: FloatLike>(
     plan: &InterpolationPlanLinear,
     y_in: &ArrayView1<T>,
     mut y_out: ArrayViewMut1<T>,
@@ -173,16 +172,16 @@ fn interp_row<T: Float>(
             let s1 = *plan.c1.get_unchecked(j);
 
             // interpolate data onto the target sample
-            let a = (*y_in.uget(i0)).to_f64().unwrap();
-            let b = (*y_in.uget(i1)).to_f64().unwrap();
-            *y_out.uget_mut(j) = T::from((b - a).mul_add(s1, a)).unwrap();
+            let a = (*y_in.uget(i0)).as_();
+            let b = (*y_in.uget(i1)).as_();
+            *y_out.uget_mut(j) = T::from_f64((b - a).mul_add(s1, a));
         }
     }
 }
 
 /// Interpolate over the last axis of a real array.
 #[inline]
-pub fn interp_last_ax_real<T: Float + Send + Sync>(
+pub fn interp_last_ax_real<T: ParFloatLike>(
     x_in: &[f64],
     x_out: &[f64],
     y_in: &ArrayView2<T>,
@@ -206,7 +205,7 @@ pub fn interp_last_ax_real<T: Float + Send + Sync>(
 /// with accompanying weights
 #[allow(clippy::too_many_arguments, reason = "inline helper function")]
 #[inline]
-pub fn interp_last_ax_complex<T: Float + Send + Sync>(
+pub fn interp_last_ax_complex<T: ParFloatLike>(
     x_in: &[f64],
     x_out: &[f64],
     y_re_in: &ArrayView2<T>,
@@ -234,13 +233,13 @@ pub fn interp_last_ax_complex<T: Float + Send + Sync>(
 /// Interpolate over the last axis of a real array
 /// with accompanying weights.
 #[inline]
-pub fn interp_last_ax_real_weighted<T: Float + Send + Sync, W: Float + Send + Sync>(
+pub fn interp_last_ax_real_weighted<T: ParFloatLike>(
     x_in: &[f64],
     x_out: &[f64],
     y_in: &ArrayView2<T>,
-    weight_in: &ArrayView2<W>,
+    weight_in: &ArrayView2<T>,
     mut y_out: ArrayViewMut2<T>,
-    mut weight_out: ArrayViewMut2<W>,
+    mut weight_out: ArrayViewMut2<T>,
 ) -> eyre::Result<()> {
     let plan = InterpolationPlanLinear::build(x_in, x_out)?;
     // update the scratch buffer size
@@ -271,15 +270,15 @@ pub fn interp_last_ax_real_weighted<T: Float + Send + Sync, W: Float + Send + Sy
 /// with accompanying weights
 #[allow(clippy::too_many_arguments, reason = "inline helper function")]
 #[inline]
-pub fn interp_last_ax_complex_weighted<T: Float + Send + Sync, W: Float + Send + Sync>(
+pub fn interp_last_ax_complex_weighted<T: ParFloatLike>(
     x_in: &[f64],
     x_out: &[f64],
     y_re_in: &ArrayView2<T>,
     y_im_in: &ArrayView2<T>,
-    weight_in: &ArrayView2<W>,
+    weight_in: &ArrayView2<T>,
     mut y_re_out: ArrayViewMut2<T>,
     mut y_im_out: ArrayViewMut2<T>,
-    mut weight_out: ArrayViewMut2<W>,
+    mut weight_out: ArrayViewMut2<T>,
 ) -> eyre::Result<()> {
     let plan = InterpolationPlanLinear::build(x_in, x_out)?;
     // update the scratch buffer size
