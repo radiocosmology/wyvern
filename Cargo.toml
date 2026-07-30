@@ -65,3 +65,6 @@ missing_const_for_fn       = "warn"  # suggest const fn where possible (noisy!)
 use_self                   = "warn"  # use Self instead of the type name in impls
 option_if_let_else         = "warn"  # suggest .map_or_else over if let
 redundant_pub_crate        = "warn"  # flag unnecessary pub(crate) visibility
+
+# Ignore too many arguments
+too_many_arguments         = "allow"

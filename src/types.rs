@@ -5,7 +5,6 @@ use num_traits::AsPrimitive;
 pub trait FloatLike: AsPrimitive<f64> + Copy + 'static {
     fn from_f64(x: f64) -> Self;
 }
-
 impl FloatLike for f32 {
     #[inline]
     #[allow(
@@ -16,7 +15,6 @@ impl FloatLike for f32 {
         x as Self
     }
 }
-
 impl FloatLike for f64 {
     #[inline]
     fn from_f64(x: f64) -> Self {
@@ -26,5 +24,4 @@ impl FloatLike for f64 {
 
 /// `[FloatLike]` type which can also be shared across threads
 pub trait ParFloatLike: FloatLike + Send + Sync {}
-
 impl<T> ParFloatLike for T where T: FloatLike + Send + Sync {}
