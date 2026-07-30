@@ -5,11 +5,87 @@ import typing as t
 import numpy
 
 __all__ = [
+    "interpolate_lanczos",
+    "interpolate_lanczos_weighted",
     "interpolate_linear",
     "interpolate_linear_weighted",
 ]
 
 # Module: interprs
+def interpolate_lanczos(
+    x_in: numpy.ndarray,
+    x_out: numpy.ndarray,
+    n_taps: int,
+    y_in: numpy.ndarray,
+    *,
+    y_out: numpy.ndarray | None = None,
+) -> numpy.ndarray:
+    """
+    Interpolate a 2D array using a Lanczos kernel.
+
+    Parameters
+    ----------
+    ``x_in``
+    1D float64 sorted array with input sample indices
+    ``x_out``
+    1D float64 sorted array with output sample indices. Must
+    have uniform spacing.
+    ``n_taps``
+    Lanczos kernel taps. Must be one of {4, 8, 16, 32}.
+    ``y_in``
+    2D float or complex float array to be interpolated.
+    ``y_out``
+    Optional 2D float or complex float array to store output.
+    If this is None, a new array is allocated. Default is None.
+
+    Returns
+    -------
+    ``y_out``
+    2D float or complex float array, shape (-1, ``n_out``)
+    """
+
+def interpolate_lanczos_weighted(
+    x_in: numpy.ndarray,
+    x_out: numpy.ndarray,
+    n_taps: int,
+    y_in: numpy.ndarray,
+    w_in: numpy.ndarray,
+    *,
+    y_out: numpy.ndarray | None = None,
+    w_out: numpy.ndarray | None = None,
+) -> tuple[numpy.ndarray, numpy.ndarray]:
+    """
+    Interpolate a 2D array with corresponding weights using a Lanczos kernel.
+
+    Parameters
+    ----------
+    ``x_in``
+    1D float64 sorted array with input sample indices
+    ``x_out``
+    1D float64 sorted array with output sample indices. Must
+    have uniform spacing.
+    ``n_taps``
+    Lanczos kernel taps. Must be one of {4, 8, 16, 32}.
+    ``y_in``
+    2D float or complex float array to be interpolated.
+    ``w_in``
+    2D float array of inverse-variance sample weights. Weights are
+    propagated by propagating variances and inverting the result.
+    ``y_out``
+    Optional 2D float or complex float array to store output.
+    If this is None, a new array is allocated. Default is None.
+    ``w_out``
+    Optional 2D float array to store propagated weights.
+    If this is None, a new array is allocated. Default is None.
+
+    Returns
+    -------
+    ``y_out``
+    2D float or complex float array, shape (-1, ``n_out``)
+    ``w_out``
+    2D float array, shape (-1, ``n_out``)
+    """
+
 def interpolate_linear(
     x_in: numpy.ndarray,
     x_out: numpy.ndarray,
