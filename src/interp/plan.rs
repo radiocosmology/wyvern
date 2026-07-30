@@ -272,15 +272,17 @@ impl<const N: usize> KernelPlan<N> {
                 eyre::bail!("inputs are unsorted or repeated!");
             }
 
-            let distant = (b - xo).abs() > delta || (a - xo).abs() > delta;
-            valid.push(f64::from(!distant));
-
             // construct a window a N taps centred on the bracket, clamped
             // to [0, n_in - N]. Coefficients must be renormalized
-            let center = lo + 1; // closest index biased towards `b`
+            let center = if (xo - a) / span < 0.5 { lo } else { lo + 1 };
             let base = (center.cast_signed() - a_half_idx)
                 .clamp(0, n_max)
                 .cast_unsigned();
+
+            // determine validity of this sample
+            #[allow(clippy::indexing_slicing, reason = "indices are already clamped")]
+            let outside_window = xo < x_in[base] || xo > x_in[base + N - 1];
+            let distant = (b - xo).abs() > delta || (a - xo).abs() > delta;
 
             // interpolation indices
             let mut c = [0.0_f64; N];
@@ -296,8 +298,13 @@ impl<const N: usize> KernelPlan<N> {
                 c[k] = w;
                 sum += w;
             }
-            // Normalize as long as there are some samples
-            if sum.abs() >= 1e-12 {
+            let sum_degenerate = sum.abs() <= 1e-9;
+
+            // Normalize as long as there are some samples. Otherwise, force
+            // coefficients to be zero
+            if sum_degenerate {
+                c = [0.0_f64; N];
+            } else {
                 for ci in &mut c {
                     *ci /= sum;
                 }
@@ -305,6 +312,7 @@ impl<const N: usize> KernelPlan<N> {
 
             i0.push(base);
             coeffs.push(c);
+            valid.push(f64::from(!(distant || outside_window || sum_degenerate)));
         }
 
         Ok(Self { i0, coeffs, valid })
