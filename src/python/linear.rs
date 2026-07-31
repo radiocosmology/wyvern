@@ -3,7 +3,7 @@ use numpy::{PyReadonlyArray1, PyUntypedArray, dtype};
 use pyo3::prelude::*;
 
 use super::{dispatch_unweighted, dispatch_weighted, require_dtype, require_ndim};
-use crate::interp::LinearPlan;
+use crate::core::LinearPlan;
 
 /// Linearly interpolate a 2D array.
 ///
