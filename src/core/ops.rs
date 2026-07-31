@@ -78,6 +78,7 @@ pub fn interp_last_ax_real_weighted<T, P>(
     // update the scratch buffer size
     let n_in = y_in.ncols();
     let scratch_pool = make_scratch_pool(n_in);
+    let mask_pool = make_scratch_pool(n_in);
     let num_threads = scratch_pool.len();
 
     // iterate over the 0th axis and interpolate the 1st
@@ -91,9 +92,14 @@ pub fn interp_last_ax_real_weighted<T, P>(
             // each thread owns one slot in the scratch buffer
             let sslot = rayon::current_thread_index().unwrap_or(0) % num_threads;
             #[allow(clippy::indexing_slicing, reason = "buffer size explicitly set")]
-            let buf: &mut Vec<f64> = unsafe { &mut *scratch_pool[sslot].0.get() };
+            let (vbuf, mbuf): (&mut Vec<f64>, &mut Vec<f64>) = unsafe {
+                (
+                    &mut *scratch_pool[sslot].0.get(),
+                    &mut *mask_pool[sslot].0.get(),
+                )
+            };
 
-            plan.interp_row_with_variance(&yi, &wi, buf, yo, wo);
+            plan.interp_row_with_variance(&yi, &wi, vbuf, mbuf, yo, wo);
         });
 }
 
@@ -116,6 +122,7 @@ pub fn interp_last_ax_complex_weighted<T, P>(
     // update the scratch buffer size
     let n_in = y_re_in.ncols();
     let scratch_pool = make_scratch_pool(n_in);
+    let mask_pool = make_scratch_pool(n_in);
     let num_threads = scratch_pool.len();
 
     // iterate over the 0th axis and interpolate the 1st
@@ -131,9 +138,14 @@ pub fn interp_last_ax_complex_weighted<T, P>(
             // each thread owns one slot in the scratch buffer
             let sslot = rayon::current_thread_index().unwrap_or(0) % num_threads;
             #[allow(clippy::indexing_slicing, reason = "buffer size explicitly set")]
-            let buf: &mut Vec<f64> = unsafe { &mut *scratch_pool[sslot].0.get() };
+            let (vbuf, mbuf): (&mut Vec<f64>, &mut Vec<f64>) = unsafe {
+                (
+                    &mut *scratch_pool[sslot].0.get(),
+                    &mut *mask_pool[sslot].0.get(),
+                )
+            };
 
-            plan.interp_row_with_variance(&yre_i, &wi, buf, yre_o, wo);
+            plan.interp_row_with_variance(&yre_i, &wi, vbuf, mbuf, yre_o, wo);
             plan.interp_row(&yim_i, yim_o);
         });
 }
