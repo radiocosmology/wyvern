@@ -1,7 +1,7 @@
 //! Implementation of [`InterpolationPlan`] for a kernel-based interpolator
 use super::plan::{InterpolationPlan, median_abs_sample_spacing};
 use crate::types::FloatLike;
-use ndarray::{ArrayView1, ArrayViewMut1};
+use ndarray::{ArrayView1, ArrayViewMut1, Axis};
 
 /// Precomputed interpolation plan for a lanczos kernel
 pub struct KernelPlan<const N: usize> {
@@ -129,23 +129,28 @@ impl<const N: usize> InterpolationPlan for KernelPlan<N> {
     #[inline]
     fn interp_row<T: FloatLike>(&self, y_in: &ArrayView1<T>, mut y_out: ArrayViewMut1<T>) {
         let n_out = self.len();
-
         debug_assert_eq!(n_out, y_out.len());
+
+        // `y_in` might have stride 2 if this is a view into a complex array
+        let ystride = y_in.stride_of(Axis(0));
+        debug_assert!(ystride > 0, "y must have positive strides");
+        let ystride = ystride.cast_unsigned();
 
         unsafe {
             for j in 0..n_out {
                 // indices and coefficients
                 let i0 = *self.i0.get_unchecked(j);
-                let coeffs = *self.coeffs.get_unchecked(j);
+                let coeffs = (*self.coeffs.get_unchecked(j)).as_ptr();
+                let yj = y_in.as_ptr().add(i0 + ystride);
 
                 // interpolate
                 let mut value_acc: f64 = 0.0;
 
                 for k in 0..N {
-                    let c = *coeffs.get_unchecked(k);
-                    let yk: f64 = (*y_in.uget(i0 + k)).as_();
+                    let ck = *coeffs.add(k);
+                    let yk = (*yj.add(k * ystride)).as_();
 
-                    value_acc = c.mul_add(yk, value_acc);
+                    value_acc = ck.mul_add(yk, value_acc);
                 }
 
                 *y_out.uget_mut(j) = T::from_f64(value_acc);
@@ -159,6 +164,7 @@ impl<const N: usize> InterpolationPlan for KernelPlan<N> {
         y_in: &ArrayView1<T>,
         weight_in: &ArrayView1<T>,
         var_scratch: &mut [f64],
+        mask_scratch: &mut [f64],
         mut y_out: ArrayViewMut1<T>,
         mut weight_out: ArrayViewMut1<T>,
     ) {
@@ -173,7 +179,12 @@ impl<const N: usize> InterpolationPlan for KernelPlan<N> {
             clippy::cast_precision_loss,
             reason = "N is positive and is never large enough for truncation to occur"
         )]
-        let min_valid_taps = (N as f64 * 0.75).ceil() as usize;
+        let min_valid_taps = (N as f64 * 0.80).ceil();
+
+        // `y_in` might have stride 2 if this is a view into a complex array
+        let ystride = y_in.stride_of(Axis(0));
+        debug_assert!(ystride > 0, "y must have positive strides");
+        let ystride = ystride.cast_unsigned();
 
         debug_assert_eq!(n_in, weight_in.len());
         debug_assert_eq!(n_in, var_scratch.len());
@@ -186,46 +197,60 @@ impl<const N: usize> InterpolationPlan for KernelPlan<N> {
             // when re-inverted to weights
             for k in 0..n_in {
                 let w: f64 = (*weight_in.uget(k)).as_();
-                *var_scratch.get_unchecked_mut(k) = 1.0 / w;
+                let good = w.is_finite() && w > 0.0;
+                *var_scratch.get_unchecked_mut(k) = if good { 1.0 / w } else { 0.0 };
+                *mask_scratch.get_unchecked_mut(k) = if good { 1.0 } else { 0.0 };
             }
 
             for j in 0..n_out {
                 // indices and coefficients
                 let i0 = *self.i0.get_unchecked(j);
-                let coeffs = *self.coeffs.get_unchecked(j);
-                let valid = *self.valid.get_unchecked(j);
+                let coeffs = (*self.coeffs.get_unchecked(j)).as_ptr();
 
-                let mut good_coeff_sum: f64 = 0.0;
-                let mut ngood: usize = 0;
-                // sort out valid taps in this window
-                for k in 0..N {
-                    let var_k = *var_scratch.get_unchecked(i0 + k);
-                    if var_k.is_finite() {
-                        good_coeff_sum += *coeffs.get_unchecked(k);
-                        ngood += 1;
-                    }
-                }
+                // NB: using pointers here generally ensures that we get SIMD
+                // optimisation through LLVM
+                let yj = y_in.as_ptr().add(i0 * ystride);
+                let vj = var_scratch.as_ptr().add(i0);
+                let mj = mask_scratch.as_ptr().add(i0);
 
-                let good = f64::from(u32::from(ngood >= min_valid_taps));
-
+                // record masked taps as well and accumulate
+                // renormalisation factor
+                let mut renorm: f64 = 0.0;
+                let mut ngood: f64 = 0.0;
                 let mut value_acc: f64 = 0.0;
                 let mut var_acc: f64 = 0.0;
-                // single loop over N taps, accumulating only good taps
-                for k in 0..N {
-                    let idx = i0 + k;
-                    let var_k = *var_scratch.get_unchecked(idx);
-                    if !var_k.is_finite() {
-                        continue;
-                    }
-                    let c = *coeffs.get_unchecked(k) / good_coeff_sum;
 
-                    let yk: f64 = (*y_in.uget(idx)).as_();
-                    value_acc = c.mul_add(yk, value_acc);
-                    var_acc += (c * c * var_k).max(0.0);
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    clippy::cast_sign_loss,
+                    reason = "mask values are only 0.0 or 1.0"
+                )]
+                for k in 0..N {
+                    let ck = *coeffs.add(k);
+                    let vk = *vj.add(k);
+                    let mk = *mj.add(k);
+                    let yk = (*yj.add(k * ystride)).as_();
+
+                    // accumulate data and variance
+                    let mck = mk * ck;
+                    value_acc = mck.mul_add(yk, value_acc);
+                    var_acc = (mck * ck).mul_add(vk, var_acc);
+
+                    // accumulate updated coefficient norm
+                    renorm += mck;
+                    ngood += mk;
                 }
 
-                *y_out.uget_mut(j) = T::from_f64(value_acc);
-                *weight_out.uget_mut(j) = T::from_f64(good * valid / var_acc);
+                *y_out.uget_mut(j) = T::from_f64(value_acc / renorm);
+                // variance is normalized by the new coefficient sum squared, inverted,
+                // and multiplied with the sample masks
+                let sufficient_taps = f64::from(u8::from(ngood >= min_valid_taps));
+                let valid = *self.valid.get_unchecked(j);
+                // clamp weights to 0.0 -> when var_acc is 0.0, both renorm and sufficient_taps
+                // are also zero, forcing the division to evaluate to NaN. Calling .max(0.0) on
+                // a NaN always evaluates to 0.0, and this _should_ end up being faster than branching
+                *weight_out.uget_mut(j) =
+                    T::from_f64((renorm * renorm * sufficient_taps * valid / var_acc).max(0.0));
             }
         }
     }

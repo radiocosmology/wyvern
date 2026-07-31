@@ -110,6 +110,7 @@ impl InterpolationPlan for LinearPlan {
         y_in: &ArrayView1<T>,
         weight_in: &ArrayView1<T>,
         var_scratch: &mut [f64],
+        _mask_scratch: &mut [f64],
         mut y_out: ArrayViewMut1<T>,
         mut weight_out: ArrayViewMut1<T>,
     ) {

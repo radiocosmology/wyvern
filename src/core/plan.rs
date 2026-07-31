@@ -16,6 +16,7 @@ pub trait InterpolationPlan {
         y_in: &ArrayView1<T>,
         weight_in: &ArrayView1<T>,
         var_scratch: &mut [f64],
+        mask_scratch: &mut [f64],
         y_out: ArrayViewMut1<T>,
         weight_out: ArrayViewMut1<T>,
     );
