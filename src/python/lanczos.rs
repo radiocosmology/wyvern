@@ -9,7 +9,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use super::{dispatch_unweighted, dispatch_weighted, require_dtype, require_ndim};
-use crate::interp::KernelPlan;
+use crate::core::KernelPlan;
 use crate::kernels::lanczos_kernel;
 
 /// Interpolate a 2D array using a Lanczos kernel.

@@ -1,7 +1,7 @@
 //! Fast linear interpolation for python.
 use pyo3::prelude::*;
 
-mod interp;
+mod core;
 mod kernels;
 mod python;
 mod types;
