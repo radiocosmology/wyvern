@@ -363,6 +363,7 @@ impl<const N: usize> InterpolationPlan for KernelPlan<N> {
     ) {
         let n_in = y_in.len();
         let n_out = self.len();
+        let min_valid_taps = (N as f64 * 0.75).ceil() as usize;
 
         debug_assert_eq!(n_in, weight_in.len());
         debug_assert_eq!(n_in, var_scratch.len());
@@ -384,23 +385,37 @@ impl<const N: usize> InterpolationPlan for KernelPlan<N> {
                 let coeffs = *self.coeffs.get_unchecked(j);
                 let valid = *self.valid.get_unchecked(j);
 
+                let mut good_coeff_sum: f64 = 0.0;
+                let mut ngood: usize = 0;
+                // sort out valid taps in this window
+                for k in 0..N {
+                    let var_k = *var_scratch.get_unchecked(i0 + k);
+                    if var_k.is_finite() {
+                        good_coeff_sum += *coeffs.get_unchecked(k);
+                        ngood += 1;
+                    }
+                }
+
+                let good = f64::from(u32::from(ngood >= min_valid_taps));
+
                 let mut value_acc: f64 = 0.0;
                 let mut var_acc: f64 = 0.0;
-
-                // single loop over N taps
+                // single loop over N taps, accumulating only good taps
                 for k in 0..N {
                     let idx = i0 + k;
-                    let c = *coeffs.get_unchecked(k);
+                    let var_k = *var_scratch.get_unchecked(idx);
+                    if !var_k.is_finite() {
+                        continue;
+                    }
+                    let c = *coeffs.get_unchecked(k) / good_coeff_sum;
 
                     let yk: f64 = (*y_in.uget(idx)).as_();
                     value_acc = c.mul_add(yk, value_acc);
-
-                    let var_k = *var_scratch.get_unchecked(idx);
                     var_acc += (c * c * var_k).max(0.0);
                 }
 
                 *y_out.uget_mut(j) = T::from_f64(value_acc);
-                *weight_out.uget_mut(j) = T::from_f64(valid / var_acc);
+                *weight_out.uget_mut(j) = T::from_f64(good * valid / var_acc);
             }
         }
     }
