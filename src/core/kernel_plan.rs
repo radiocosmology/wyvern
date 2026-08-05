@@ -11,6 +11,9 @@ pub struct KernelPlan<const N: usize> {
     coeffs: Vec<[f64; N]>,
     // mask for valid samples
     valid: Vec<f64>,
+    // track the bracket indices for the kernel center
+    center_a: Vec<usize>,
+    center_b: Vec<usize>,
 }
 
 impl<const N: usize> KernelPlan<N> {
@@ -43,6 +46,8 @@ impl<const N: usize> KernelPlan<N> {
         debug_assert!(n_out >= 1, "need at least 1 output sample!");
 
         let mut i0 = Vec::<usize>::with_capacity(n_out);
+        let mut center_a = Vec::<usize>::with_capacity(n_out);
+        let mut center_b = Vec::<usize>::with_capacity(n_out);
         let mut coeffs = Vec::with_capacity(n_out);
         let mut valid = Vec::<f64>::with_capacity(n_out);
 
@@ -88,7 +93,7 @@ impl<const N: usize> KernelPlan<N> {
             // interpolation indices
             let mut c = [0.0_f64; N];
             // normalization
-            let mut sum = 0.0;
+            let mut sum: f64 = 0.0;
 
             // compute the kernel coefficients
             #[allow(clippy::indexing_slicing, reason = "indices are already clamped")]
@@ -97,26 +102,36 @@ impl<const N: usize> KernelPlan<N> {
                 let dist = (xo - xi) / span;
                 let w = kernel(dist, a_half);
                 c[k] = w;
-                sum += w;
+                // don't necessarily assume that all coefficients
+                // are positive
+                sum += w.abs();
             }
-            let sum_degenerate = sum.abs() <= 1e-9;
+            // force coefficients to 0.0 if the sum is extremely small
+            if sum <= 1e-6 {
+                // x / inf evaluates to zero
+                sum = f64::INFINITY;
+            }
 
-            // Normalize as long as there are some samples. Otherwise, force
-            // coefficients to be zero
-            if sum_degenerate {
-                c = [0.0_f64; N];
-            } else {
-                for ci in &mut c {
-                    *ci /= sum;
-                }
+            // Normalize. If `sum_degenerate` is true, `sum` is inf
+            // and this evaluates ci to 0.0
+            for ci in &mut c {
+                *ci /= sum;
             }
 
             i0.push(base);
+            center_a.push(lo);
+            center_b.push(lo + 1);
             coeffs.push(c);
-            valid.push(f64::from(!(distant || outside_window || sum_degenerate)));
+            valid.push(f64::from(!(distant || outside_window) && sum.is_finite()));
         }
 
-        Ok(Self { i0, coeffs, valid })
+        Ok(Self {
+            i0,
+            coeffs,
+            valid,
+            center_a,
+            center_b,
+        })
     }
 }
 
@@ -170,16 +185,6 @@ impl<const N: usize> InterpolationPlan for KernelPlan<N> {
     ) {
         let n_in = y_in.len();
         let n_out = self.len();
-        // minimum number of window coefficients matching
-        // valid weights in order to keep an interpolated
-        // sample
-        #[allow(
-            clippy::cast_possible_truncation,
-            clippy::cast_sign_loss,
-            clippy::cast_precision_loss,
-            reason = "N is positive and is never large enough for truncation to occur"
-        )]
-        let min_valid_taps = (N as f64 * 0.80).ceil();
 
         // `y_in` might have stride 2 if this is a view into a complex array
         let ystride = y_in.stride_of(Axis(0));
@@ -205,18 +210,22 @@ impl<const N: usize> InterpolationPlan for KernelPlan<N> {
             for j in 0..n_out {
                 // indices and coefficients
                 let i0 = *self.i0.get_unchecked(j);
-                let coeffs = (*self.coeffs.get_unchecked(j)).as_ptr();
-
                 // NB: using pointers here generally ensures that we get SIMD
                 // optimisation through LLVM
+                let coeffs = (*self.coeffs.get_unchecked(j)).as_ptr();
                 let yj = y_in.as_ptr().add(i0 * ystride);
                 let vj = var_scratch.as_ptr().add(i0);
                 let mj = mask_scratch.as_ptr().add(i0);
 
+                // valid only if window center falls between two valid samples
+                let a_idx = *self.center_a.get_unchecked(j);
+                let b_idx = *self.center_b.get_unchecked(j);
+                let center_mask =
+                    *mask_scratch.get_unchecked(a_idx) * *mask_scratch.get_unchecked(b_idx);
+
                 // record masked taps as well and accumulate
                 // renormalisation factor
                 let mut renorm: f64 = 0.0;
-                let mut ngood: f64 = 0.0;
                 let mut value_acc: f64 = 0.0;
                 let mut var_acc: f64 = 0.0;
 
@@ -235,22 +244,19 @@ impl<const N: usize> InterpolationPlan for KernelPlan<N> {
                     let mck = mk * ck;
                     value_acc = mck.mul_add(yk, value_acc);
                     var_acc = (mck * ck).mul_add(vk, var_acc);
-
                     // accumulate updated coefficient norm
                     renorm += mck;
-                    ngood += mk;
                 }
 
                 *y_out.uget_mut(j) = T::from_f64(value_acc / renorm);
                 // variance is normalized by the new coefficient sum squared, inverted,
                 // and multiplied with the sample masks
-                let sufficient_taps = f64::from(u8::from(ngood >= min_valid_taps));
                 let valid = *self.valid.get_unchecked(j);
                 // clamp weights to 0.0 -> when var_acc is 0.0, both renorm and sufficient_taps
                 // are also zero, forcing the division to evaluate to NaN. Calling .max(0.0) on
                 // a NaN always evaluates to 0.0, and this _should_ end up being faster than branching
                 *weight_out.uget_mut(j) =
-                    T::from_f64((renorm * renorm * sufficient_taps * valid / var_acc).max(0.0));
+                    T::from_f64((renorm * renorm * center_mask * valid / var_acc).max(0.0));
             }
         }
     }
