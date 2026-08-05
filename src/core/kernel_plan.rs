@@ -102,9 +102,7 @@ impl<const N: usize> KernelPlan<N> {
                 let dist = (xo - xi) / span;
                 let w = kernel(dist, a_half);
                 c[k] = w;
-                // don't necessarily assume that all coefficients
-                // are positive
-                sum += w.abs();
+                sum += w;
             }
             // force coefficients to 0.0 if the sum is extremely small
             if sum <= 1e-6 {
@@ -202,26 +200,19 @@ impl<const N: usize> InterpolationPlan for KernelPlan<N> {
             // when re-inverted to weights
             for k in 0..n_in {
                 let w: f64 = (*weight_in.uget(k)).as_();
-                let good = w.is_finite() && w > 0.0;
-                *var_scratch.get_unchecked_mut(k) = if good { 1.0 / w } else { 0.0 };
-                *mask_scratch.get_unchecked_mut(k) = if good { 1.0 } else { 0.0 };
+                *var_scratch.get_unchecked_mut(k) = invert_no_zero(w);
+                *mask_scratch.get_unchecked_mut(k) = f64::from(w.is_finite() && w > 0.0);
             }
 
             for j in 0..n_out {
                 // indices and coefficients
                 let i0 = *self.i0.get_unchecked(j);
-                // NB: using pointers here generally ensures that we get SIMD
+                // NB: using pointers here hopefully ensures that we get SIMD
                 // optimisation through LLVM
                 let coeffs = (*self.coeffs.get_unchecked(j)).as_ptr();
                 let yj = y_in.as_ptr().add(i0 * ystride);
                 let vj = var_scratch.as_ptr().add(i0);
                 let mj = mask_scratch.as_ptr().add(i0);
-
-                // valid only if window center falls between two valid samples
-                let a_idx = *self.center_a.get_unchecked(j);
-                let b_idx = *self.center_b.get_unchecked(j);
-                let center_mask =
-                    *mask_scratch.get_unchecked(a_idx) * *mask_scratch.get_unchecked(b_idx);
 
                 // record masked taps as well and accumulate
                 // renormalisation factor
@@ -248,16 +239,38 @@ impl<const N: usize> InterpolationPlan for KernelPlan<N> {
                     renorm += mck;
                 }
 
-                *y_out.uget_mut(j) = T::from_f64(value_acc / renorm);
+                // Invert the norm, zeroing the sample if `renorm` is zero. The
+                // corresponding weight will also be zeroed
+                let inv_norm = invert_no_zero(renorm);
+                *y_out.uget_mut(j) = T::from_f64(value_acc * inv_norm);
                 // variance is normalized by the new coefficient sum squared, inverted,
                 // and multiplied with the sample masks
                 let valid = *self.valid.get_unchecked(j);
-                // clamp weights to 0.0 -> when var_acc is 0.0, both renorm and sufficient_taps
-                // are also zero, forcing the division to evaluate to NaN. Calling .max(0.0) on
-                // a NaN always evaluates to 0.0, and this _should_ end up being faster than branching
+                // valid only if window center falls between two valid samples
+                let a_idx = *self.center_a.get_unchecked(j);
+                let b_idx = *self.center_b.get_unchecked(j);
+                let center_mask =
+                    *mask_scratch.get_unchecked(a_idx) * *mask_scratch.get_unchecked(b_idx);
+                let inv_var = invert_no_zero(var_acc);
                 *weight_out.uget_mut(j) =
-                    T::from_f64((renorm * renorm * center_mask * valid / var_acc).max(0.0));
+                    T::from_f64(renorm * renorm * center_mask * valid * inv_var);
             }
         }
     }
+}
+
+// invert a value, or return zero if the value is zero
+#[inline]
+fn invert_no_zero(x: f64) -> f64 {
+    if x == 0.0 { 0.0 } else { 1.0 / x }
+}
+
+#[inline]
+#[allow(dead_code, reason = "testing")]
+fn invert_no_zero_branchless(x: f64) -> f64 {
+    let inv = 1.0 / x;
+    // bitmask - all zeros if x is zero, all ones otherwise
+    let bitmask = u64::from(x != 0.0).wrapping_neg();
+
+    f64::from_bits(inv.to_bits() & bitmask)
 }
