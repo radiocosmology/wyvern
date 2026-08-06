@@ -1,6 +1,6 @@
 [package]
 name = "interprs"
-version = "0.3.1"
+version = "0.4.0"
 edition = "2024"
 description = "A fast Rust extension for various numerical array algorithms"
 authors = ["Liam Gray <liam.gray@ubc.ca>"]
