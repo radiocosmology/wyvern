@@ -21,6 +21,7 @@ ndarray = { version = "0.17.2", features = ["rayon"] }
 num-complex = "0.4.6"
 num-traits = "0.2.19"
 numpy = "0.29.0"
+paste = "1.0.15"
 pyo3 = { version = "0.29.0", default-features = false, features = ["eyre"] }
 rayon = "1.12.0"
 

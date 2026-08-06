@@ -267,89 +267,71 @@ impl<T: FloatLike, const N: usize> Interpolator<T> for KernelPlan<N> {
     }
 }
 
-/// Enum wrapping each supported kernel width
-pub enum DynamicKernelPlan {
-    W4(KernelPlan<4>),
-    W8(KernelPlan<8>),
-    W16(KernelPlan<16>),
-    W32(KernelPlan<32>),
-    W64(KernelPlan<64>),
-    W128(KernelPlan<128>),
-}
+/// Construct a [`DynamicKernelPlan`] enum for any number of supported
+/// tap widths
+macro_rules! define_dynamic_kernel_plan {
+    ($($n:literal),+ $(,)?) => {
+        paste::paste! {
+            pub enum DynamicKernelPlan {
+                $(
+                    [<W $n>](KernelPlan<$n>),
+                )+
+            }
 
-impl DynamicKernelPlan {
-    /// Choose the smallest supported `N` that covers the required
-    /// number of taps, after scaling to account for downsampling.
-    pub fn build(
-        x_in: &[f64],
-        x_out: &[f64],
-        n_taps: usize,
-        kernel: impl Fn(f64, f64) -> f64,
-    ) -> eyre::Result<Self> {
-        // compute the required filter scaling
-        let required_taps = compute_scaled_taps(x_in, x_out, n_taps);
+            impl DynamicKernelPlan {
+                /// Choose the smalles supported `N` that covers the required
+                /// number of taps, after scaling to account for downsampling.
+                pub fn build(
+                    x_in: &[f64],
+                    x_out: &[f64],
+                    n_taps: usize,
+                    kernel: impl Fn(f64, f64) -> f64,
+                ) -> eyre::Result<Self> {
+                    // compute the required filter scaling
+                    let (required_taps, filter_scale) = compute_scaled_taps(x_in, x_out, n_taps);
 
-        // Menu lookup: smallest supported width >= required_width.
-        // Extend this list if you need more granularity; each entry
-        // costs one more monomorphized copy of the interpolation code
-        // in the binary (code-size/instruction-cache trade-off).
-        Ok(if required_taps <= 4 {
-            Self::W4(KernelPlan::<4>::build(x_in, x_out, kernel)?)
-        } else if required_taps <= 8 {
-            Self::W8(KernelPlan::<8>::build(x_in, x_out, kernel)?)
-        } else if required_taps <= 16 {
-            Self::W16(KernelPlan::<16>::build(x_in, x_out, kernel)?)
-        } else if required_taps <= 32 {
-            Self::W32(KernelPlan::<32>::build(x_in, x_out, kernel)?)
-        } else if required_taps <= 64 {
-            Self::W64(KernelPlan::<64>::build(x_in, x_out, kernel)?)
-        } else if required_taps <= 128 {
-            Self::W128(KernelPlan::<128>::build(x_in, x_out, kernel)?)
-        } else {
-            eyre::bail!(
-                "required kernel width {required_taps} exceeds largest supported menu \
-                 entry (128) -- downsampling ratio too extreme for this configuration"
-            );
-        })
-    }
-}
+                    $(
+                        if required_taps <= $n {
+                            return Ok(Self::[<W $n>](KernelPlan::<$n>::build(x_in, x_out, kernel)?));
+                        }
+                    )+
 
-impl InterpolationPlan for DynamicKernelPlan {
-    #[inline]
-    fn len(&self) -> usize {
-        match self {
-            Self::W4(p) => p.len(),
-            Self::W8(p) => p.len(),
-            Self::W16(p) => p.len(),
-            Self::W32(p) => p.len(),
-            Self::W64(p) => p.len(),
-            Self::W128(p) => p.len(),
+                    let max_supported = [$($n),+].into_iter().max().unwrap();
+                    eyre::bail!(
+                        "required kernel width for requested taps `{n_taps}` and (down)scaling factor \
+                        `{filter_scale}` is `{required_taps}`, which is larger than the largest supported \
+                        kernel size: `{max_supported}`. Note that when upsampling, the scaling factor is
+                        fixed at `1.0`."
+                    );
+                }
+            }
+
+            impl InterpolationPlan for DynamicKernelPlan {
+                #[inline]
+                fn len(&self) -> usize {
+                    match self {
+                        $( Self::[<W $n>](p) => p.len(), )+
+                    }
+                }
+            }
+
+            impl IntoInterpolator for DynamicKernelPlan {
+                /// Returns a `%dyn Interpolator<T>` for callers to extract the
+                /// underlying typed interpolator
+                fn as_interpolator<T: FloatLike>(&self) -> &dyn Interpolator<T>
+                where
+                    $( KernelPlan<$n>: Interpolator<T>, )+
+                {
+                    match self {
+                        $( Self::[<W $n>](p) => p, )+
+                    }
+                }
+            }
         }
     }
 }
 
-impl IntoInterpolator for DynamicKernelPlan {
-    /// Returns a `&dyn Interpolator` for callers that want to hoist the enum
-    /// match only once (e.g., outside a per-row loop)
-    fn as_interpolator<T: FloatLike>(&self) -> &dyn Interpolator<T>
-    where
-        KernelPlan<4>: Interpolator<T>,
-        KernelPlan<8>: Interpolator<T>,
-        KernelPlan<16>: Interpolator<T>,
-        KernelPlan<32>: Interpolator<T>,
-        KernelPlan<64>: Interpolator<T>,
-        KernelPlan<128>: Interpolator<T>,
-    {
-        match self {
-            Self::W4(p) => p,
-            Self::W8(p) => p,
-            Self::W16(p) => p,
-            Self::W32(p) => p,
-            Self::W64(p) => p,
-            Self::W128(p) => p,
-        }
-    }
-}
+define_dynamic_kernel_plan!(4, 8, 16, 32, 64, 128);
 
 /// Kernel ratio scaling. Support is limited to be greater than 1.0,
 /// meaning that support is unchanged when upsampling
@@ -360,7 +342,7 @@ impl IntoInterpolator for DynamicKernelPlan {
     clippy::cast_sign_loss,
     reason = "precision loss would only occur with unreasonable num samples"
 )]
-fn compute_scaled_taps(x_in: &[f64], x_out: &[f64], requested_taps: usize) -> usize {
+fn compute_scaled_taps(x_in: &[f64], x_out: &[f64], requested_taps: usize) -> (usize, f64) {
     let n_in = x_in.len();
     let n_out = x_out.len();
     debug_assert!(
@@ -378,7 +360,10 @@ fn compute_scaled_taps(x_in: &[f64], x_out: &[f64], requested_taps: usize) -> us
 
     let filter_scale = (out_spacing / in_spacing).max(1.0);
 
-    (requested_taps as f64 * filter_scale).ceil() as usize
+    (
+        (requested_taps as f64 * filter_scale).ceil() as usize,
+        filter_scale,
+    )
 }
 
 /// invert a value, or return zero if the value is zero
