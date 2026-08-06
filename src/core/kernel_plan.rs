@@ -22,6 +22,7 @@ impl<const N: usize> KernelPlan<N> {
         x_in: &[f64],
         x_out: &[f64],
         kernel: impl Fn(f64, f64) -> f64,
+        filter_scale: f64,
     ) -> eyre::Result<Self> {
         let n_in = x_in.len();
         let n_out = x_out.len();
@@ -93,7 +94,7 @@ impl<const N: usize> KernelPlan<N> {
             #[allow(clippy::indexing_slicing, reason = "indices are already clamped")]
             for k in 0..N {
                 let xi = x_in[base + k];
-                let dist = (xo - xi) / span;
+                let dist = (xo - xi) / span / filter_scale;
                 let w = kernel(dist, a_half);
                 c[k] = w;
                 sum += w;
@@ -287,7 +288,7 @@ macro_rules! define_dynamic_kernel_plan {
 
                     $(
                         if required_taps <= $n {
-                            return Ok(Self::[<W $n>](KernelPlan::<$n>::build(x_in, x_out, kernel)?));
+                            return Ok(Self::[<W $n>](KernelPlan::<$n>::build(x_in, x_out, kernel, filter_scale)?));
                         }
                     )+
 
