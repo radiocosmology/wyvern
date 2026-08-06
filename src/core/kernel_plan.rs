@@ -23,11 +23,6 @@ impl<const N: usize> KernelPlan<N> {
         x_out: &[f64],
         kernel: impl Fn(f64, f64) -> f64,
     ) -> eyre::Result<Self> {
-        debug_assert!(
-            N >= 2 && N.is_multiple_of(2),
-            "kernel width N must be even and >= 2"
-        );
-
         let n_in = x_in.len();
         let n_out = x_out.len();
         debug_assert!(n_in >= N, "need at least N={N} samples!");
@@ -36,9 +31,9 @@ impl<const N: usize> KernelPlan<N> {
         #[allow(
             clippy::cast_precision_loss,
             clippy::integer_division,
-            reason = "values too small for precision loss"
+            reason = "values too small for precision loss and integer division is desired"
         )]
-        // kernel half-width as a float and integet
+        // kernel half-width as a float and integer
         let (a_half, a_half_isize) = {
             let ah = N / 2;
             (ah as f64, ah.cast_signed())
@@ -331,7 +326,7 @@ macro_rules! define_dynamic_kernel_plan {
     }
 }
 
-define_dynamic_kernel_plan!(4, 8, 16, 32, 64, 128);
+define_dynamic_kernel_plan!(3, 5, 9, 15, 31, 63, 127);
 
 /// Kernel ratio scaling. Support is limited to be greater than 1.0,
 /// meaning that support is unchanged when upsampling
