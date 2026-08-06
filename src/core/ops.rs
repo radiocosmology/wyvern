@@ -3,7 +3,7 @@ use ndarray::{ArrayView2, ArrayViewMut2, Zip};
 use rayon::prelude::*;
 use std::cell::UnsafeCell;
 
-use super::plan::InterpolationPlan;
+use super::plan::Interpolator;
 use crate::types::ParFloatLike;
 
 /// Wrapper to allow &mut access into one Vec<f64> slot from
@@ -20,10 +20,12 @@ fn make_scratch_pool(n_in: usize) -> Vec<ScratchSlot> {
 
 /// Interpolate over the last axis of a real array.
 #[inline]
-pub fn interp_last_ax_real<T, P>(plan: &P, y_in: &ArrayView2<T>, mut y_out: ArrayViewMut2<T>)
-where
+pub fn interp_last_ax_real<T>(
+    interpolator: &dyn Interpolator<T>,
+    y_in: &ArrayView2<T>,
+    mut y_out: ArrayViewMut2<T>,
+) where
     T: ParFloatLike,
-    P: InterpolationPlan + Sync,
 {
     // iterate over the 0th axis and interpolate the 1st
     // (contiguous) axis
@@ -31,7 +33,7 @@ where
         .and(y_out.rows_mut())
         .into_par_iter()
         .for_each(|(yi, yo)| {
-            plan.interp_row(&yi, yo);
+            interpolator.interp_row(&yi, yo);
         });
 }
 
@@ -39,15 +41,14 @@ where
 /// with accompanying weights
 #[allow(clippy::too_many_arguments, reason = "inline helper function")]
 #[inline]
-pub fn interp_last_ax_complex<T, P>(
-    plan: &P,
+pub fn interp_last_ax_complex<T>(
+    interpolator: &dyn Interpolator<T>,
     y_re_in: &ArrayView2<T>,
     y_im_in: &ArrayView2<T>,
     mut y_re_out: ArrayViewMut2<T>,
     mut y_im_out: ArrayViewMut2<T>,
 ) where
     T: ParFloatLike,
-    P: InterpolationPlan + Sync,
 {
     // iterate over the 0th axis and interpolate the 1st
     // (contiguous) axis
@@ -57,23 +58,22 @@ pub fn interp_last_ax_complex<T, P>(
         .and(y_im_out.rows_mut())
         .into_par_iter()
         .for_each(|(yre_i, yim_i, yre_o, yim_o)| {
-            plan.interp_row(&yre_i, yre_o);
-            plan.interp_row(&yim_i, yim_o);
+            interpolator.interp_row(&yre_i, yre_o);
+            interpolator.interp_row(&yim_i, yim_o);
         });
 }
 
 /// Interpolate over the last axis of a real array
 /// with accompanying weights.
 #[inline]
-pub fn interp_last_ax_real_weighted<T, P>(
-    plan: &P,
+pub fn interp_last_ax_real_weighted<T>(
+    interpolator: &dyn Interpolator<T>,
     y_in: &ArrayView2<T>,
     weight_in: &ArrayView2<T>,
     mut y_out: ArrayViewMut2<T>,
     mut weight_out: ArrayViewMut2<T>,
 ) where
     T: ParFloatLike,
-    P: InterpolationPlan + Sync,
 {
     // update the scratch buffer size
     let n_in = y_in.ncols();
@@ -99,7 +99,7 @@ pub fn interp_last_ax_real_weighted<T, P>(
                 )
             };
 
-            plan.interp_row_with_variance(&yi, &wi, vbuf, mbuf, yo, wo);
+            interpolator.interp_row_with_variance(&yi, &wi, vbuf, mbuf, yo, wo);
         });
 }
 
@@ -107,8 +107,8 @@ pub fn interp_last_ax_real_weighted<T, P>(
 /// with accompanying weights
 #[allow(clippy::too_many_arguments, reason = "inline helper function")]
 #[inline]
-pub fn interp_last_ax_complex_weighted<T, P>(
-    plan: &P,
+pub fn interp_last_ax_complex_weighted<T>(
+    interpolator: &dyn Interpolator<T>,
     y_re_in: &ArrayView2<T>,
     y_im_in: &ArrayView2<T>,
     weight_in: &ArrayView2<T>,
@@ -117,7 +117,6 @@ pub fn interp_last_ax_complex_weighted<T, P>(
     mut weight_out: ArrayViewMut2<T>,
 ) where
     T: ParFloatLike,
-    P: InterpolationPlan + Sync,
 {
     // update the scratch buffer size
     let n_in = y_re_in.ncols();
@@ -145,7 +144,7 @@ pub fn interp_last_ax_complex_weighted<T, P>(
                 )
             };
 
-            plan.interp_row_with_variance(&yre_i, &wi, vbuf, mbuf, yre_o, wo);
-            plan.interp_row(&yim_i, yim_o);
+            interpolator.interp_row_with_variance(&yre_i, &wi, vbuf, mbuf, yre_o, wo);
+            interpolator.interp_row(&yim_i, yim_o);
         });
 }
