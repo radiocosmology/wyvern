@@ -16,6 +16,53 @@ use crate::core::{
 };
 use crate::types::ParFloatLike;
 
+// ------ Dispatch to typed methods ------
+
+/// Unweighted dispatch macro - expands to a sequence if dtype comparisons
+macro_rules! try_dispatch_unweighted {
+    (
+        $py:expr, $plan:expr, $y_in:expr, $y_out:expr, $out_shape:expr, $y_dtype:expr,
+        [ $( ($pytype:ty, $floatty:ty, $func:ident) ),+ $(,)? ]
+    ) => {
+        $(
+            if $y_dtype.is_equiv_to(&dtype::<$pytype>($py)) {
+                let y_in: PyReadonlyArray2<$pytype> = $y_in.extract()?;
+                let y_out = ensure_array::<$pytype>($py, $y_out, $out_shape)?;
+                let interpolator: &dyn Interpolator<$floatty> = $plan.as_interpolator();
+                return Ok($func::<$floatty>($py, interpolator, &y_in, y_out));
+            }
+        )+
+    };
+}
+
+/// Weighted dispatch macro - two-level structure which checks float weights
+/// and interpolator types, before checking for real vs complex data
+macro_rules! try_dispatch_weighted {
+    (
+        $py:expr, $plan:expr, $y_in:expr, $w_in:expr, $y_out:expr, $w_out:expr,
+        $out_shape:expr, $y_dtype:expr, $w_dtype:expr,
+        [ $( ($floatty:ty, [ $( ($pytype:ty, $func:ident) ),+ $(,)? ]) ),+ $(,)? ]
+    ) => {
+        $(
+            if $w_dtype.is_equiv_to(&dtype::<$floatty>($py)) {
+                let w_in: PyReadonlyArray2<$floatty> = $w_in.extract()?;
+                let w_out = ensure_array::<$floatty>($py, $w_out, $out_shape)?;
+                let interpolator: &dyn Interpolator<$floatty> = $plan.as_interpolator();
+
+                $(
+                    if $y_dtype.is_equiv_to(&dtype::<$pytype>($py)) {
+                        let y_in: PyReadonlyArray2<$pytype> = $y_in.extract()?;
+                        let y_out = ensure_array::<$pytype>($py, $y_out, $out_shape)?;
+                        return Ok($func::<$floatty>(
+                            $py, interpolator, &y_in, &w_in, y_out, w_out,
+                        ));
+                    }
+                )+
+            }
+        )+
+    };
+}
+
 /// Type dispatch for unweighted interpolator calls
 pub fn dispatch_unweighted<'py, P: IntoInterpolator + InterpolationPlan>(
     py: Python<'py>,
@@ -35,30 +82,16 @@ pub fn dispatch_unweighted<'py, P: IntoInterpolator + InterpolationPlan>(
     // now, require that both data and weights have matching bit depth
     let y_dtype = y_in.dtype();
 
-    if y_dtype.is_equiv_to(&dtype::<f32>(py)) {
-        let y_in: PyReadonlyArray2<f32> = y_in.extract()?;
-        let y_out = ensure_array::<f32>(py, y_out, out_shape)?;
-        let interpolator: &dyn Interpolator<f32> = plan.as_interpolator();
-        return Ok(real_unweighted::<f32>(py, interpolator, &y_in, y_out));
-    }
-    if y_dtype.is_equiv_to(&dtype::<f64>(py)) {
-        let y_in: PyReadonlyArray2<f64> = y_in.extract()?;
-        let y_out = ensure_array::<f64>(py, y_out, out_shape)?;
-        let interpolator: &dyn Interpolator<f64> = plan.as_interpolator();
-        return Ok(real_unweighted::<f64>(py, interpolator, &y_in, y_out));
-    }
-    if y_dtype.is_equiv_to(&dtype::<Complex<f32>>(py)) {
-        let y_in: PyReadonlyArray2<Complex<f32>> = y_in.extract()?;
-        let y_out = ensure_array::<Complex<f32>>(py, y_out, out_shape)?;
-        let interpolator: &dyn Interpolator<f32> = plan.as_interpolator();
-        return Ok(complex_unweighted::<f32>(py, interpolator, &y_in, y_out));
-    }
-    if y_dtype.is_equiv_to(&dtype::<Complex<f64>>(py)) {
-        let y_in: PyReadonlyArray2<Complex<f64>> = y_in.extract()?;
-        let y_out = ensure_array::<Complex<f64>>(py, y_out, out_shape)?;
-        let interpolator: &dyn Interpolator<f64> = plan.as_interpolator();
-        return Ok(complex_unweighted::<f64>(py, interpolator, &y_in, y_out));
-    }
+    try_dispatch_unweighted!(
+        py, plan, y_in, y_out, out_shape, y_dtype,
+        [
+            (f32, f32, real_unweighted),
+            (f64, f64, real_unweighted),
+            (Complex<f32>, f32, complex_unweighted),
+            (Complex<f64>, f64, complex_unweighted),
+        ]
+    );
+
     Err(PyTypeError::new_err(format!(
         "'y' has unsupported type '{y_dtype}'. supported types are: \
         float32, float64, complex64, complex128.",
@@ -88,66 +121,14 @@ pub fn dispatch_weighted<'py, P: IntoInterpolator + InterpolationPlan>(
     let y_dtype = y_in.dtype();
     let w_dtype = w_in.dtype();
 
-    if w_dtype.is_equiv_to(&dtype::<f32>(py)) {
-        let w_in: PyReadonlyArray2<f32> = w_in.extract()?;
-        let w_out = ensure_array::<f32>(py, w_out, out_shape)?;
-        let interpolator: &dyn Interpolator<f32> = plan.as_interpolator();
+    try_dispatch_weighted!(
+        py, plan, y_in, w_in, y_out, w_out, out_shape, y_dtype, w_dtype,
+        [
+            (f32, [ (f32, real_weighted), (Complex<f32>, complex_weighted) ]),
+            (f64, [ (f64, real_weighted), (Complex<f64>, complex_weighted) ]),
+        ]
+    );
 
-        if y_dtype.is_equiv_to(&dtype::<f32>(py)) {
-            let y_in: PyReadonlyArray2<f32> = y_in.extract()?;
-            let y_out = ensure_array::<f32>(py, y_out, out_shape)?;
-            return Ok(real_weighted::<f32>(
-                py,
-                interpolator,
-                &y_in,
-                &w_in,
-                y_out,
-                w_out,
-            ));
-        }
-        if y_dtype.is_equiv_to(&dtype::<Complex<f32>>(py)) {
-            let y_in: PyReadonlyArray2<Complex<f32>> = y_in.extract()?;
-            let y_out = ensure_array::<Complex<f32>>(py, y_out, out_shape)?;
-            return Ok(complex_weighted::<f32>(
-                py,
-                interpolator,
-                &y_in,
-                &w_in,
-                y_out,
-                w_out,
-            ));
-        }
-    }
-    if w_dtype.is_equiv_to(&dtype::<f64>(py)) {
-        let w_in: PyReadonlyArray2<f64> = w_in.extract()?;
-        let w_out = ensure_array::<f64>(py, w_out, out_shape)?;
-        let interpolator: &dyn Interpolator<f64> = plan.as_interpolator();
-
-        if y_dtype.is_equiv_to(&dtype::<f64>(py)) {
-            let y_in: PyReadonlyArray2<f64> = y_in.extract()?;
-            let y_out = ensure_array::<f64>(py, y_out, out_shape)?;
-            return Ok(real_weighted::<f64>(
-                py,
-                interpolator,
-                &y_in,
-                &w_in,
-                y_out,
-                w_out,
-            ));
-        }
-        if y_dtype.is_equiv_to(&dtype::<Complex<f64>>(py)) {
-            let y_in: PyReadonlyArray2<Complex<f64>> = y_in.extract()?;
-            let y_out = ensure_array::<Complex<f64>>(py, y_out, out_shape)?;
-            return Ok(complex_weighted::<f64>(
-                py,
-                interpolator,
-                &y_in,
-                &w_in,
-                y_out,
-                w_out,
-            ));
-        }
-    }
     Err(PyTypeError::new_err(format!(
         "Unsupported data types or combination! `y`: {y_dtype}, `w`: {w_dtype}. \
         Supported data types are: float32, float64, complex64, complex128. \
@@ -155,6 +136,8 @@ pub fn dispatch_weighted<'py, P: IntoInterpolator + InterpolationPlan>(
         data and weight arrays must have matching bit depth."
     )))
 }
+
+// ------ Generic typed, multithreaded dispatch ------
 
 fn real_unweighted<'py, T>(
     py: Python<'py>,
