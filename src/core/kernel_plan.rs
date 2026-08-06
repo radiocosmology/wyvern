@@ -1,5 +1,5 @@
 //! Implementation of [`InterpolationPlan`] for a kernel-based interpolator
-use super::plan::{InterpolationPlan, median_abs_sample_spacing};
+use super::plan::{InterpolationPlan, Interpolator, IntoInterpolator, median_abs_sample_spacing};
 use crate::types::FloatLike;
 use ndarray::{ArrayView1, ArrayViewMut1, Axis};
 
@@ -30,6 +30,8 @@ impl<const N: usize> KernelPlan<N> {
 
         let n_in = x_in.len();
         let n_out = x_out.len();
+        debug_assert!(n_in >= N, "need at least N={N} samples!");
+        debug_assert!(n_out >= 1, "need at least 1 output sample!");
 
         #[allow(
             clippy::cast_precision_loss,
@@ -41,9 +43,6 @@ impl<const N: usize> KernelPlan<N> {
             let ah = N / 2;
             (ah as f64, ah.cast_signed())
         };
-
-        debug_assert!(n_in >= N, "need at least N={N} samples!");
-        debug_assert!(n_out >= 1, "need at least 1 output sample!");
 
         let mut i0 = Vec::<usize>::with_capacity(n_out);
         let mut center_a = Vec::<usize>::with_capacity(n_out);
@@ -138,9 +137,18 @@ impl<const N: usize> InterpolationPlan for KernelPlan<N> {
     fn len(&self) -> usize {
         self.i0.len()
     }
+}
 
+impl<const N: usize> IntoInterpolator for KernelPlan<N> {
     #[inline]
-    fn interp_row<T: FloatLike>(&self, y_in: &ArrayView1<T>, mut y_out: ArrayViewMut1<T>) {
+    fn as_interpolator<T: FloatLike>(&self) -> &dyn Interpolator<T> {
+        self
+    }
+}
+
+impl<T: FloatLike, const N: usize> Interpolator<T> for KernelPlan<N> {
+    #[inline]
+    fn interp_row(&self, y_in: &ArrayView1<T>, mut y_out: ArrayViewMut1<T>) {
         let n_out = self.len();
         debug_assert_eq!(n_out, y_out.len());
 
@@ -172,7 +180,7 @@ impl<const N: usize> InterpolationPlan for KernelPlan<N> {
     }
 
     #[inline]
-    fn interp_row_with_variance<T: FloatLike>(
+    fn interp_row_with_variance(
         &self,
         y_in: &ArrayView1<T>,
         weight_in: &ArrayView1<T>,
@@ -259,7 +267,121 @@ impl<const N: usize> InterpolationPlan for KernelPlan<N> {
     }
 }
 
-// invert a value, or return zero if the value is zero
+/// Enum wrapping each supported kernel width
+pub enum DynamicKernelPlan {
+    W4(KernelPlan<4>),
+    W8(KernelPlan<8>),
+    W16(KernelPlan<16>),
+    W32(KernelPlan<32>),
+    W64(KernelPlan<64>),
+    W128(KernelPlan<128>),
+}
+
+impl DynamicKernelPlan {
+    /// Choose the smallest supported `N` that covers the required
+    /// number of taps, after scaling to account for downsampling.
+    pub fn build(
+        x_in: &[f64],
+        x_out: &[f64],
+        n_taps: usize,
+        kernel: impl Fn(f64, f64) -> f64,
+    ) -> eyre::Result<Self> {
+        // compute the required filter scaling
+        let required_taps = compute_scaled_taps(x_in, x_out, n_taps);
+
+        // Menu lookup: smallest supported width >= required_width.
+        // Extend this list if you need more granularity; each entry
+        // costs one more monomorphized copy of the interpolation code
+        // in the binary (code-size/instruction-cache trade-off).
+        Ok(if required_taps <= 4 {
+            Self::W4(KernelPlan::<4>::build(x_in, x_out, kernel)?)
+        } else if required_taps <= 8 {
+            Self::W8(KernelPlan::<8>::build(x_in, x_out, kernel)?)
+        } else if required_taps <= 16 {
+            Self::W16(KernelPlan::<16>::build(x_in, x_out, kernel)?)
+        } else if required_taps <= 32 {
+            Self::W32(KernelPlan::<32>::build(x_in, x_out, kernel)?)
+        } else if required_taps <= 64 {
+            Self::W64(KernelPlan::<64>::build(x_in, x_out, kernel)?)
+        } else if required_taps <= 128 {
+            Self::W128(KernelPlan::<128>::build(x_in, x_out, kernel)?)
+        } else {
+            eyre::bail!(
+                "required kernel width {required_taps} exceeds largest supported menu \
+                 entry (128) -- downsampling ratio too extreme for this configuration"
+            );
+        })
+    }
+}
+
+impl InterpolationPlan for DynamicKernelPlan {
+    #[inline]
+    fn len(&self) -> usize {
+        match self {
+            Self::W4(p) => p.len(),
+            Self::W8(p) => p.len(),
+            Self::W16(p) => p.len(),
+            Self::W32(p) => p.len(),
+            Self::W64(p) => p.len(),
+            Self::W128(p) => p.len(),
+        }
+    }
+}
+
+impl IntoInterpolator for DynamicKernelPlan {
+    /// Returns a `&dyn Interpolator` for callers that want to hoist the enum
+    /// match only once (e.g., outside a per-row loop)
+    fn as_interpolator<T: FloatLike>(&self) -> &dyn Interpolator<T>
+    where
+        KernelPlan<4>: Interpolator<T>,
+        KernelPlan<8>: Interpolator<T>,
+        KernelPlan<16>: Interpolator<T>,
+        KernelPlan<32>: Interpolator<T>,
+        KernelPlan<64>: Interpolator<T>,
+        KernelPlan<128>: Interpolator<T>,
+    {
+        match self {
+            Self::W4(p) => p,
+            Self::W8(p) => p,
+            Self::W16(p) => p,
+            Self::W32(p) => p,
+            Self::W64(p) => p,
+            Self::W128(p) => p,
+        }
+    }
+}
+
+/// Kernel ratio scaling. Support is limited to be greater than 1.0,
+/// meaning that support is unchanged when upsampling
+#[inline]
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "precision loss would only occur with unreasonable num samples"
+)]
+fn compute_scaled_taps(x_in: &[f64], x_out: &[f64], requested_taps: usize) -> usize {
+    let n_in = x_in.len();
+    let n_out = x_out.len();
+    debug_assert!(
+        n_in >= requested_taps,
+        "need at least N={requested_taps} samples!"
+    );
+    debug_assert!(n_out >= 1, "need at least 1 output sample!");
+
+    #[allow(clippy::indexing_slicing, reason = "indices already checked")]
+    let (in_domain, out_domain) = { (x_in[n_in - 1] - x_in[0], x_out[n_out - 1] - x_out[0]) };
+
+    // ratio of physical spacings - >1 means downsampling
+    let in_spacing = in_domain / n_in.saturating_sub(1).max(1) as f64;
+    let out_spacing = out_domain / n_out.saturating_sub(1).max(1) as f64;
+
+    let filter_scale = (out_spacing / in_spacing).max(1.0);
+
+    (requested_taps as f64 * filter_scale).ceil() as usize
+}
+
+/// invert a value, or return zero if the value is zero
 #[inline]
 fn invert_no_zero(x: f64) -> f64 {
     if x == 0.0 { 0.0 } else { 1.0 / x }

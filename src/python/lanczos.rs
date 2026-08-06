@@ -5,11 +5,10 @@
 //! - 16
 //! - 32
 use numpy::{PyReadonlyArray1, PyUntypedArray, dtype};
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use super::{dispatch_unweighted, dispatch_weighted, require_dtype, require_ndim};
-use crate::core::KernelPlan;
+use crate::core::DynamicKernelPlan;
 use crate::kernels::lanczos_kernel;
 
 /// Interpolate a 2D array using a Lanczos kernel.
@@ -56,25 +55,10 @@ pub fn interpolate_lanczos<'py>(
     let x_out: PyReadonlyArray1<f64> = x_out.extract()?;
     let x_out_sl = x_out.as_slice()?;
 
-    // macro to simplify dispatch for various fixed widths
-    macro_rules! build_and_dispatch_fixed_taps {
-        ($n_taps:expr, widths = [ $( $n:literal ), + $(,)? ]) => {{
-            pub const SUPPORTED_TAP_WIDTHS: &[usize] = &[ $( $n ),+ ];
-            match $n_taps {
-                $(
-                    $n => {
-                        let plan = KernelPlan::<$n>::build(x_in_sl, x_out_sl, lanczos_kernel)?;
-                        dispatch_unweighted(py, &plan, y_in, y_out)
-                    }
-                )+
-                other => Err(PyValueError::new_err(format!(
-                    "Unsupported kernel width {other}; supported: {:?}", SUPPORTED_TAP_WIDTHS
-                ))),
-            }
-        }};
-    }
-    // dispatch to fixed kernel widths
-    build_and_dispatch_fixed_taps!(n_taps, widths = [4, 8, 16, 32])
+    let plan = DynamicKernelPlan::build(x_in_sl, x_out_sl, n_taps, lanczos_kernel)?;
+    // let interpolator = plan.as_interpolator();
+
+    dispatch_unweighted(py, &plan, y_in, y_out)
 }
 
 /// Interpolate a 2D array with corresponding weights using a Lanczos kernel.
@@ -130,23 +114,7 @@ pub fn interpolate_lanczos_weighted<'py>(
     let x_out: PyReadonlyArray1<f64> = x_out.extract()?;
     let x_out_sl = x_out.as_slice()?;
 
-    // macro to simplify dispatch for various fixed widths
-    macro_rules! build_and_dispatch_fixed_taps {
-        ($n_taps:expr, widths = [ $( $n:literal ), + $(,)? ]) => {{
-            pub const SUPPORTED_TAP_WIDTHS: &[usize] = &[ $( $n ),+ ];
-            match $n_taps {
-                $(
-                    $n => {
-                        let plan = KernelPlan::<$n>::build(x_in_sl, x_out_sl, lanczos_kernel)?;
-                        dispatch_weighted(py, &plan, y_in, w_in, y_out, w_out)
-                    }
-                )+
-                other => Err(PyValueError::new_err(format!(
-                    "Unsupported kernel width {other}; supported: {:?}", SUPPORTED_TAP_WIDTHS
-                ))),
-            }
-        }};
-    }
-    // dispatch to fixed kernel widths
-    build_and_dispatch_fixed_taps!(n_taps, widths = [4, 8, 16, 32])
+    let plan = DynamicKernelPlan::build(x_in_sl, x_out_sl, n_taps, lanczos_kernel)?;
+
+    dispatch_weighted(py, &plan, y_in, w_in, y_out, w_out)
 }

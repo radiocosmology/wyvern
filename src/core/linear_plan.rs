@@ -1,5 +1,5 @@
 //! Linear implementation for a [`InterpolationPlan`].
-use super::plan::{InterpolationPlan, median_abs_sample_spacing};
+use super::plan::{InterpolationPlan, Interpolator, IntoInterpolator, median_abs_sample_spacing};
 use crate::types::FloatLike;
 use ndarray::{ArrayView1, ArrayViewMut1};
 
@@ -81,9 +81,18 @@ impl InterpolationPlan for LinearPlan {
     fn len(&self) -> usize {
         self.i0.len()
     }
+}
 
+impl IntoInterpolator for LinearPlan {
     #[inline]
-    fn interp_row<T: FloatLike>(&self, y_in: &ArrayView1<T>, mut y_out: ArrayViewMut1<T>) {
+    fn as_interpolator<T: FloatLike>(&self) -> &dyn Interpolator<T> {
+        self
+    }
+}
+
+impl<T: FloatLike> Interpolator<T> for LinearPlan {
+    #[inline]
+    fn interp_row(&self, y_in: &ArrayView1<T>, mut y_out: ArrayViewMut1<T>) {
         let n_out = self.len();
 
         debug_assert_eq!(n_out, y_out.len());
@@ -105,7 +114,7 @@ impl InterpolationPlan for LinearPlan {
     }
 
     #[inline]
-    fn interp_row_with_variance<T: FloatLike>(
+    fn interp_row_with_variance(
         &self,
         y_in: &ArrayView1<T>,
         weight_in: &ArrayView1<T>,

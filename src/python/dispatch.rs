@@ -11,13 +11,13 @@ use pyo3::prelude::*;
 
 use super::{ensure_array, require_ndim, split_complex_view, split_complex_view_mut};
 use crate::core::{
-    InterpolationPlan, interp_last_ax_complex, interp_last_ax_complex_weighted,
-    interp_last_ax_real, interp_last_ax_real_weighted,
+    InterpolationPlan, Interpolator, IntoInterpolator, interp_last_ax_complex,
+    interp_last_ax_complex_weighted, interp_last_ax_real, interp_last_ax_real_weighted,
 };
 use crate::types::ParFloatLike;
 
 /// Type dispatch for unweighted interpolator calls
-pub fn dispatch_unweighted<'py, P: InterpolationPlan + Sync>(
+pub fn dispatch_unweighted<'py, P: IntoInterpolator + InterpolationPlan>(
     py: Python<'py>,
     plan: &P,
     y_in: &Bound<'py, PyUntypedArray>,
@@ -38,22 +38,26 @@ pub fn dispatch_unweighted<'py, P: InterpolationPlan + Sync>(
     if y_dtype.is_equiv_to(&dtype::<f32>(py)) {
         let y_in: PyReadonlyArray2<f32> = y_in.extract()?;
         let y_out = ensure_array::<f32>(py, y_out, out_shape)?;
-        return Ok(real_unweighted::<f32, P>(py, plan, &y_in, y_out));
+        let interpolator: &dyn Interpolator<f32> = plan.as_interpolator();
+        return Ok(real_unweighted::<f32>(py, interpolator, &y_in, y_out));
     }
     if y_dtype.is_equiv_to(&dtype::<f64>(py)) {
         let y_in: PyReadonlyArray2<f64> = y_in.extract()?;
         let y_out = ensure_array::<f64>(py, y_out, out_shape)?;
-        return Ok(real_unweighted::<f64, P>(py, plan, &y_in, y_out));
+        let interpolator: &dyn Interpolator<f64> = plan.as_interpolator();
+        return Ok(real_unweighted::<f64>(py, interpolator, &y_in, y_out));
     }
     if y_dtype.is_equiv_to(&dtype::<Complex<f32>>(py)) {
         let y_in: PyReadonlyArray2<Complex<f32>> = y_in.extract()?;
         let y_out = ensure_array::<Complex<f32>>(py, y_out, out_shape)?;
-        return Ok(complex_unweighted::<f32, P>(py, plan, &y_in, y_out));
+        let interpolator: &dyn Interpolator<f32> = plan.as_interpolator();
+        return Ok(complex_unweighted::<f32>(py, interpolator, &y_in, y_out));
     }
     if y_dtype.is_equiv_to(&dtype::<Complex<f64>>(py)) {
         let y_in: PyReadonlyArray2<Complex<f64>> = y_in.extract()?;
         let y_out = ensure_array::<Complex<f64>>(py, y_out, out_shape)?;
-        return Ok(complex_unweighted::<f64, P>(py, plan, &y_in, y_out));
+        let interpolator: &dyn Interpolator<f64> = plan.as_interpolator();
+        return Ok(complex_unweighted::<f64>(py, interpolator, &y_in, y_out));
     }
     Err(PyTypeError::new_err(format!(
         "'y' has unsupported type '{y_dtype}'. supported types are: \
@@ -62,7 +66,7 @@ pub fn dispatch_unweighted<'py, P: InterpolationPlan + Sync>(
 }
 
 /// Type dispatch for weighted interpolator calls
-pub fn dispatch_weighted<'py, P: InterpolationPlan + Sync>(
+pub fn dispatch_weighted<'py, P: IntoInterpolator + InterpolationPlan>(
     py: Python<'py>,
     plan: &P,
     y_in: &Bound<'py, PyUntypedArray>,
@@ -87,38 +91,60 @@ pub fn dispatch_weighted<'py, P: InterpolationPlan + Sync>(
     if w_dtype.is_equiv_to(&dtype::<f32>(py)) {
         let w_in: PyReadonlyArray2<f32> = w_in.extract()?;
         let w_out = ensure_array::<f32>(py, w_out, out_shape)?;
+        let interpolator: &dyn Interpolator<f32> = plan.as_interpolator();
 
         if y_dtype.is_equiv_to(&dtype::<f32>(py)) {
             let y_in: PyReadonlyArray2<f32> = y_in.extract()?;
             let y_out = ensure_array::<f32>(py, y_out, out_shape)?;
-            return Ok(real_weighted::<f32, P>(
-                py, plan, &y_in, &w_in, y_out, w_out,
+            return Ok(real_weighted::<f32>(
+                py,
+                interpolator,
+                &y_in,
+                &w_in,
+                y_out,
+                w_out,
             ));
         }
         if y_dtype.is_equiv_to(&dtype::<Complex<f32>>(py)) {
             let y_in: PyReadonlyArray2<Complex<f32>> = y_in.extract()?;
             let y_out = ensure_array::<Complex<f32>>(py, y_out, out_shape)?;
-            return Ok(complex_weighted::<f32, P>(
-                py, plan, &y_in, &w_in, y_out, w_out,
+            return Ok(complex_weighted::<f32>(
+                py,
+                interpolator,
+                &y_in,
+                &w_in,
+                y_out,
+                w_out,
             ));
         }
     }
     if w_dtype.is_equiv_to(&dtype::<f64>(py)) {
         let w_in: PyReadonlyArray2<f64> = w_in.extract()?;
         let w_out = ensure_array::<f64>(py, w_out, out_shape)?;
+        let interpolator: &dyn Interpolator<f64> = plan.as_interpolator();
 
         if y_dtype.is_equiv_to(&dtype::<f64>(py)) {
             let y_in: PyReadonlyArray2<f64> = y_in.extract()?;
             let y_out = ensure_array::<f64>(py, y_out, out_shape)?;
-            return Ok(real_weighted::<f64, P>(
-                py, plan, &y_in, &w_in, y_out, w_out,
+            return Ok(real_weighted::<f64>(
+                py,
+                interpolator,
+                &y_in,
+                &w_in,
+                y_out,
+                w_out,
             ));
         }
         if y_dtype.is_equiv_to(&dtype::<Complex<f64>>(py)) {
             let y_in: PyReadonlyArray2<Complex<f64>> = y_in.extract()?;
             let y_out = ensure_array::<Complex<f64>>(py, y_out, out_shape)?;
-            return Ok(complex_weighted::<f64, P>(
-                py, plan, &y_in, &w_in, y_out, w_out,
+            return Ok(complex_weighted::<f64>(
+                py,
+                interpolator,
+                &y_in,
+                &w_in,
+                y_out,
+                w_out,
             ));
         }
     }
@@ -130,28 +156,27 @@ pub fn dispatch_weighted<'py, P: InterpolationPlan + Sync>(
     )))
 }
 
-fn real_unweighted<'py, T, P>(
+fn real_unweighted<'py, T>(
     py: Python<'py>,
-    plan: &P,
+    interpolator: &dyn Interpolator<T>,
     y_in: &PyReadonlyArray2<'py, T>,
     mut y_out: PyReadwriteArray2<'py, T>,
 ) -> Py<PyUntypedArray>
 where
     T: ParFloatLike + Element,
-    P: InterpolationPlan + Sync,
 {
     // Need views of arrays before detaching
     let y_in_view = y_in.as_array();
     let y_out_view = y_out.as_array_mut();
 
-    py.detach(|| interp_last_ax_real(plan, &y_in_view, y_out_view));
+    py.detach(|| interp_last_ax_real(interpolator, &y_in_view, y_out_view));
 
     y_out.as_untyped().clone().unbind()
 }
 
-fn real_weighted<'py, T, P>(
+fn real_weighted<'py, T>(
     py: Python<'py>,
-    plan: &P,
+    interpolator: &dyn Interpolator<T>,
     y_in: &PyReadonlyArray2<'py, T>,
     w_in: &PyReadonlyArray2<'py, T>,
     mut y_out: PyReadwriteArray2<'py, T>,
@@ -159,7 +184,6 @@ fn real_weighted<'py, T, P>(
 ) -> (Py<PyUntypedArray>, Py<PyUntypedArray>)
 where
     T: ParFloatLike + Element,
-    P: InterpolationPlan + Sync,
 {
     // views before detach
     let y_in_view = y_in.as_array();
@@ -169,7 +193,7 @@ where
     let y_out_view = y_out.as_array_mut();
 
     py.detach(|| {
-        interp_last_ax_real_weighted(plan, &y_in_view, &w_in_view, y_out_view, w_out_view);
+        interp_last_ax_real_weighted(interpolator, &y_in_view, &w_in_view, y_out_view, w_out_view);
     });
 
     (
@@ -178,29 +202,28 @@ where
     )
 }
 
-fn complex_unweighted<'py, T, P>(
+fn complex_unweighted<'py, T>(
     py: Python<'py>,
-    plan: &P,
+    interpolator: &dyn Interpolator<T>,
     y_in: &PyReadonlyArray2<'py, Complex<T>>,
     mut y_out: PyReadwriteArray2<'py, Complex<T>>,
 ) -> Py<PyUntypedArray>
 where
     T: ParFloatLike + Element,
     Complex<T>: Element,
-    P: InterpolationPlan + Sync,
 {
     // views before detach. Provides strided re/im views
     let (yre_in, yim_in) = unsafe { split_complex_view(&y_in.as_array()) };
     let (yre_out, yim_out) = unsafe { split_complex_view_mut(&y_out.as_array_mut()) };
 
-    py.detach(|| interp_last_ax_complex(plan, &yre_in, &yim_in, yre_out, yim_out));
+    py.detach(|| interp_last_ax_complex(interpolator, &yre_in, &yim_in, yre_out, yim_out));
 
     y_out.as_untyped().clone().unbind()
 }
 
-fn complex_weighted<'py, T, P>(
+fn complex_weighted<'py, T>(
     py: Python<'py>,
-    plan: &P,
+    interpolator: &dyn Interpolator<T>,
     y_in: &PyReadonlyArray2<'py, Complex<T>>,
     w_in: &PyReadonlyArray2<'py, T>,
     mut y_out: PyReadwriteArray2<'py, Complex<T>>,
@@ -209,7 +232,6 @@ fn complex_weighted<'py, T, P>(
 where
     T: ParFloatLike + Element,
     Complex<T>: Element,
-    P: InterpolationPlan + Sync,
 {
     let (yre_in, yim_in) = unsafe { split_complex_view(&y_in.as_array()) };
     let w_in_view = w_in.as_array();
@@ -219,7 +241,13 @@ where
 
     py.detach(|| {
         interp_last_ax_complex_weighted(
-            plan, &yre_in, &yim_in, &w_in_view, yre_out, yim_out, w_out_view,
+            interpolator,
+            &yre_in,
+            &yim_in,
+            &w_in_view,
+            yre_out,
+            yim_out,
+            w_out_view,
         );
     });
 

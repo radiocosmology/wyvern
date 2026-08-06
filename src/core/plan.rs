@@ -2,16 +2,22 @@
 use crate::types::FloatLike;
 use ndarray::{ArrayView1, ArrayViewMut1};
 
-pub trait InterpolationPlan {
-    // Number of output samples produced by this plan
-    fn len(&self) -> usize;
+// ------ Traits ------
 
+/// Implements methods required to construct an interpolation plan
+pub trait InterpolationPlan {
+    /// Number of output samples
+    fn len(&self) -> usize;
+}
+
+/// Implements interpolation methods for float-like values
+pub trait Interpolator<T: FloatLike>: Sync {
     // Interpolate a single row's data onto output points
-    fn interp_row<T: FloatLike>(&self, y_in: &ArrayView1<T>, y_out: ArrayViewMut1<T>);
+    fn interp_row(&self, y_in: &ArrayView1<T>, y_out: ArrayViewMut1<T>);
 
     // Interpolate a single row's data onto output points,
     // and propagate corresponding inverse-variance weights
-    fn interp_row_with_variance<T: FloatLike>(
+    fn interp_row_with_variance(
         &self,
         y_in: &ArrayView1<T>,
         weight_in: &ArrayView1<T>,
@@ -21,6 +27,14 @@ pub trait InterpolationPlan {
         weight_out: ArrayViewMut1<T>,
     );
 }
+
+/// Implements methods to convert this to a typed [`Interpolator`]
+pub trait IntoInterpolator {
+    /// extract the interpolator
+    fn as_interpolator<T: FloatLike>(&self) -> &dyn Interpolator<T>;
+}
+
+// ------ Utility functions ------
 
 /// Computes the median of |diff(x)| -- matches np.median(np.abs(np.diff(lsd))).
 /// Requires a mutable scratch Vec to avoid an extra allocation if you
