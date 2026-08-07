@@ -327,7 +327,9 @@ macro_rules! define_dynamic_kernel_plan {
     }
 }
 
-define_dynamic_kernel_plan!(3, 5, 9, 15, 31, 63, 127);
+// powers of 2 + 1 seems like reasonable choices for no
+// valid reason
+define_dynamic_kernel_plan!(3, 5, 9, 17, 33, 64, 129, 257);
 
 /// Kernel ratio scaling. Support is limited to be greater than 1.0,
 /// meaning that support is unchanged when upsampling
