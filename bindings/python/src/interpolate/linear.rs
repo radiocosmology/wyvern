@@ -1,17 +1,11 @@
-//! Python wrapper for lanczos interpolation.
-//! Currently supports the following kernel widths:
-//! - 4
-//! - 8
-//! - 16
-//! - 32
+//! Python wrapper for linear interpolator.
 use numpy::{PyReadonlyArray1, PyUntypedArray, dtype};
 use pyo3::prelude::*;
 
 use super::{dispatch_unweighted, dispatch_weighted, require_dtype, require_ndim};
-use crate::interpolate::core::DynamicKernelPlan;
-use crate::kernels::lanczos_kernel;
+use wyvern::interpolate::LinearPlan;
 
-/// Interpolate a 2D array using a Lanczos kernel.
+/// Linearly interpolate a 2D array.
 ///
 /// Parameters
 /// ----------
@@ -20,8 +14,6 @@ use crate::kernels::lanczos_kernel;
 /// ``x_out``
 ///     1D float64 sorted array with output sample indices. Must
 ///     have uniform spacing.
-/// ``n_taps``
-///     Lanczos kernel taps. Must be one of {4, 8, 16, 32}.
 /// ``y_in``
 ///     2D float or complex float array to be interpolated.
 /// ``y_out``
@@ -33,12 +25,11 @@ use crate::kernels::lanczos_kernel;
 /// ``y_out``
 ///     2D float or complex float array, shape (-1, ``n_out``)
 #[pyfunction]
-#[pyo3(signature = (x_in, x_out, n_taps, y_in, *, y_out = None))]
-pub fn interpolate_lanczos<'py>(
+#[pyo3(signature = (x_in, x_out, y_in, *, y_out = None))]
+pub fn interpolate_linear<'py>(
     py: Python<'py>,
     x_in: &Bound<'py, PyUntypedArray>,
     x_out: &Bound<'py, PyUntypedArray>,
-    n_taps: usize,
     y_in: &Bound<'py, PyUntypedArray>,
     y_out: Option<&Bound<'py, PyUntypedArray>>,
 ) -> PyResult<Py<PyUntypedArray>> {
@@ -55,13 +46,13 @@ pub fn interpolate_lanczos<'py>(
     let x_out: PyReadonlyArray1<f64> = x_out.extract()?;
     let x_out_sl = x_out.as_slice()?;
 
-    let plan = DynamicKernelPlan::build(x_in_sl, x_out_sl, n_taps, lanczos_kernel)?;
-    // let interpolator = plan.as_interpolator();
+    // construct the interpolation plan
+    let plan = LinearPlan::build(x_in_sl, x_out_sl)?;
 
     dispatch_unweighted(py, &plan, y_in, y_out)
 }
 
-/// Interpolate a 2D array with corresponding weights using a Lanczos kernel.
+/// Linearly interpolate a 2D array with corresponding weights.
 ///
 /// Parameters
 /// ----------
@@ -70,8 +61,6 @@ pub fn interpolate_lanczos<'py>(
 /// ``x_out``
 ///     1D float64 sorted array with output sample indices. Must
 ///     have uniform spacing.
-/// ``n_taps``
-///     Lanczos kernel taps. Must be one of {4, 8, 16, 32}.
 /// ``y_in``
 ///     2D float or complex float array to be interpolated.
 /// ``w_in``
@@ -91,12 +80,11 @@ pub fn interpolate_lanczos<'py>(
 /// ``w_out``
 ///     2D float array, shape (-1, ``n_out``)
 #[pyfunction]
-#[pyo3(signature = (x_in, x_out, n_taps, y_in, w_in, *, y_out = None, w_out = None))]
-pub fn interpolate_lanczos_weighted<'py>(
+#[pyo3(signature = (x_in, x_out, y_in, w_in, *, y_out = None, w_out = None))]
+pub fn interpolate_linear_weighted<'py>(
     py: Python<'py>,
     x_in: &Bound<'py, PyUntypedArray>,
     x_out: &Bound<'py, PyUntypedArray>,
-    n_taps: usize,
     y_in: &Bound<'py, PyUntypedArray>,
     w_in: &Bound<'py, PyUntypedArray>,
     y_out: Option<&Bound<'py, PyUntypedArray>>,
@@ -114,7 +102,8 @@ pub fn interpolate_lanczos_weighted<'py>(
     let x_out: PyReadonlyArray1<f64> = x_out.extract()?;
     let x_out_sl = x_out.as_slice()?;
 
-    let plan = DynamicKernelPlan::build(x_in_sl, x_out_sl, n_taps, lanczos_kernel)?;
+    // construct the interpolation plan
+    let plan = LinearPlan::build(x_in_sl, x_out_sl)?;
 
     dispatch_weighted(py, &plan, y_in, w_in, y_out, w_out)
 }

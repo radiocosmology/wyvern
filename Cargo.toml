@@ -1,33 +1,13 @@
-[package]
-name = "wyvern"
+[workspace]
+members = [
+  "wyvern",
+  "bindings/python",
+]
+resolver = "3"
+
+[workspace.package]
 version = "0.4.0"
 edition = "2024"
-description = "A fast Rust extension for various numerical array algorithms"
-authors = ["Liam Gray <liam.gray@ubc.ca>"]
-license = "GPL-3.0-or-later"
-repository = "https://github.com/ljgray/wyvern"
-documentation = "https://ljgray.github.io/wyvern/"
-readme = "README.md"
-keywords = ["numpy", "rust", "pyo3"]
-
-[lib]
-name = "wyvern"
-crate-type = ["cdylib", "rlib"]
-
-[dependencies]
-eyre = "0.6.12"
-mimalloc = {version = "0.1.52", optional = true }
-ndarray = { version = "0.17.2", features = ["rayon"] }
-num-complex = "0.4.6"
-num-traits = "0.2.19"
-numpy = "0.29.0"
-paste = "1.0.15"
-pyo3 = { version = "0.29.0", default-features = false, features = ["eyre"] }
-rayon = "1.12.0"
-
-[features]
-mimalloc = ["dep:mimalloc"]
-extension-module = ["pyo3/extension-module"]
 
 [profile.release]
 opt-level = 3
@@ -39,33 +19,36 @@ inherits = "release"
 lto = "thin"
 debug-assertions = true
 
-[lints.clippy]
+[workspace.lints.rust]
+missing_docs = "allow"
+
+[workspace.lints.clippy]
 # Enable all pedantic warnings
 pedantic = { level = "warn", priority = -1 }
 
 # Enable specific selection from `restriction`
 # Unfinished code and style
-expect_used      = "deny"
-unwrap_used      = "deny"
-panic            = "deny"
-todo             = "warn"
-unimplemented    = "warn"
+expect_used = "deny"
+unwrap_used = "deny"
+panic = "deny"
+todo = "warn"
+unimplemented = "warn"
 # Code safety
-integer_division         = "warn"  # flag truncating integer division
-string_slice             = "warn"  # flag non-char-boundary string slicing
-indexing_slicing         = "warn"  # flag unchecked [] indexing
+integer_division = "warn"  # flag truncating integer division
+string_slice = "warn"  # flag non-char-boundary string slicing
+indexing_slicing = "warn"  # flag unchecked [] indexing
 # Clarity
-else_if_without_else       = "warn"  # enforce exhaustive if-else chains
+else_if_without_else = "warn"  # enforce exhaustive if-else chains
 allow_attributes_without_reason = "warn"  # every #[allow] must have reason = "..."
 
 # Enable specific selection from `nursary`
 # Performance
-suboptimal_flops           = "warn"  # suggest faster float ops (e.g. x.mul_add)
-missing_const_for_fn       = "warn"  # suggest const fn where possible (noisy!)
+suboptimal_flops = "warn"  # suggest faster float ops (e.g. x.mul_add)
+missing_const_for_fn = "warn"  # suggest const fn where possible (noisy!)
 # Quality
-use_self                   = "warn"  # use Self instead of the type name in impls
-option_if_let_else         = "warn"  # suggest .map_or_else over if let
-redundant_pub_crate        = "warn"  # flag unnecessary pub(crate) visibility
+use_self = "warn"  # use Self instead of the type name in impls
+option_if_let_else = "warn"  # suggest .map_or_else over if let
+redundant_pub_crate = "warn"  # flag unnecessary pub(crate) visibility
 
 # Ignore too many arguments
-too_many_arguments         = "allow"
+too_many_arguments = "allow"

@@ -1,0 +1,29 @@
+[package]
+name = "wyvern"
+version.workspace = true
+edition.workspace = true
+description = "A fast Rust extension for various numerical array algorithms"
+authors = ["Liam Gray <liam.gray@ubc.ca>"]
+license = "GPL-3.0-or-later"
+homepage = "https://github.com/ljgray/wyvern"
+repository = "https://github.com/ljgray/wyvern"
+documentation = "https://ljgray.github.io/wyvern/"
+readme = "./README.md"
+keywords = ["wyvern"]
+
+[lib]
+name = "wyvern"
+
+[dependencies]
+eyre = "0.6.12"
+mimalloc = {version = "0.1.52", optional = true }
+ndarray = { version = "0.17.2", features = ["rayon"] }
+num-traits = "0.2.19"
+paste = "1.0.15"
+rayon = "1.12.0"
+
+[features]
+mimalloc = ["dep:mimalloc"]
+
+[lints]
+workspace = true

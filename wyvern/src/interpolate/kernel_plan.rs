@@ -17,7 +17,20 @@ pub struct KernelPlan<const N: usize> {
 }
 
 impl<const N: usize> KernelPlan<N> {
-    // N is defined to be even, with N/2 taps on each side of the centre
+    /// Build an interpolation plan for a kernel-based interpolator.
+    ///
+    /// # Parameters
+    /// ``x_in``: sorted, arbitrary spacing, len >= N
+    /// ``x_out``: sorted, uniform spacing, len >= 1
+    /// ``kernel``: kernel function
+    /// ``filter_scale``: kernel point separation scaling factor
+    ///
+    /// # Returns
+    /// [`KernelPlan`]
+    ///
+    /// # Errors
+    /// If input sample indices are unsorted or repeated, or too few
+    /// samples are provided.
     pub fn build(
         x_in: &[f64],
         x_out: &[f64],
@@ -26,8 +39,13 @@ impl<const N: usize> KernelPlan<N> {
     ) -> eyre::Result<Self> {
         let n_in = x_in.len();
         let n_out = x_out.len();
-        debug_assert!(n_in >= N, "need at least N={N} samples!");
-        debug_assert!(n_out >= 1, "need at least 1 output sample!");
+        // validate inputs
+        if n_in < N {
+            eyre::bail!("need at least N={N} samples!");
+        }
+        if n_out < 1 {
+            eyre::bail!("need at least 1 output sample!");
+        }
 
         #[allow(
             clippy::cast_precision_loss,
@@ -275,8 +293,24 @@ macro_rules! define_dynamic_kernel_plan {
             }
 
             impl DynamicKernelPlan {
-                /// Choose the smalles supported `N` that covers the required
+                /// Build an interpolation plan for a kernel-based interpolator.
+                ///
+                /// Choose the smallest supported `N` that covers the required
                 /// number of taps, after scaling to account for downsampling.
+                ///
+                /// # Parameters
+                /// ``x_in``: sorted, arbitrary spacing, len >= N
+                /// ``x_out``: sorted, uniform spacing, len >= 1
+                /// ``n_taps``: number of desired window taps. Window scaling is
+                ///             applied when downsampling.
+                /// ``kernel``: kernel function
+                ///
+                /// # Returns
+                /// [`DynamicKernelPlan`]
+                ///
+                /// # Errors
+                /// If input sample indices are unsorted or repeated, or too few
+                /// samples are provided.
                 pub fn build(
                     x_in: &[f64],
                     x_out: &[f64],
@@ -284,7 +318,7 @@ macro_rules! define_dynamic_kernel_plan {
                     kernel: impl Fn(f64, f64) -> f64,
                 ) -> eyre::Result<Self> {
                     // compute the required filter scaling
-                    let (required_taps, filter_scale) = compute_scaled_taps(x_in, x_out, n_taps);
+                    let (required_taps, filter_scale) = compute_scaled_taps(x_in, x_out, n_taps)?;
 
                     $(
                         if required_taps <= $n {
@@ -329,7 +363,7 @@ macro_rules! define_dynamic_kernel_plan {
 
 // powers of 2 + 1 seems like reasonable choices for no
 // valid reason
-define_dynamic_kernel_plan!(3, 5, 9, 17, 33, 64, 129, 257);
+define_dynamic_kernel_plan!(3, 5, 9, 17, 33, 65, 129, 257);
 
 /// Kernel ratio scaling. Support is limited to be greater than 1.0,
 /// meaning that support is unchanged when upsampling
@@ -340,14 +374,21 @@ define_dynamic_kernel_plan!(3, 5, 9, 17, 33, 64, 129, 257);
     clippy::cast_sign_loss,
     reason = "precision loss would only occur with unreasonable num samples"
 )]
-fn compute_scaled_taps(x_in: &[f64], x_out: &[f64], requested_taps: usize) -> (usize, f64) {
+fn compute_scaled_taps(
+    x_in: &[f64],
+    x_out: &[f64],
+    requested_taps: usize,
+) -> eyre::Result<(usize, f64)> {
     let n_in = x_in.len();
     let n_out = x_out.len();
-    debug_assert!(
-        n_in >= requested_taps,
-        "need at least N={requested_taps} samples!"
-    );
-    debug_assert!(n_out >= 1, "need at least 1 output sample!");
+
+    if n_in < requested_taps {
+        eyre::bail!("need at least N={requested_taps} samples!");
+    }
+
+    if n_out < 1 {
+        eyre::bail!("need at least 1 output sample!");
+    }
 
     #[allow(clippy::indexing_slicing, reason = "indices already checked")]
     let (in_domain, out_domain) = { (x_in[n_in - 1] - x_in[0], x_out[n_out - 1] - x_out[0]) };
@@ -358,10 +399,10 @@ fn compute_scaled_taps(x_in: &[f64], x_out: &[f64], requested_taps: usize) -> (u
 
     let filter_scale = (out_spacing / in_spacing).max(1.0);
 
-    (
+    Ok((
         (requested_taps as f64 * filter_scale).ceil() as usize,
         filter_scale,
-    )
+    ))
 }
 
 /// invert a value, or return zero if the value is zero

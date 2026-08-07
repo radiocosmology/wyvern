@@ -8,6 +8,10 @@ use ndarray::{ArrayView1, ArrayViewMut1};
 pub trait InterpolationPlan {
     /// Number of output samples
     fn len(&self) -> usize;
+    /// `true` if `len` is zero
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 /// Implements interpolation methods for float-like values

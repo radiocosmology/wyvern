@@ -17,14 +17,27 @@ pub struct LinearPlan {
 }
 
 impl LinearPlan {
+    /// Build an interpolation plan for a linear interpolator.
+    ///
+    /// # Parameters
     /// ``x_in``: sorted, arbitrary spacing, len >= 2
     /// ``x_out``: sorted, uniform spacing, len >= 1
+    ///
+    /// # Returns
+    /// [`LinearPlan`]
+    ///
+    /// # Errors
+    /// If input sample indices are unsorted or repeated
     pub fn build(x_in: &[f64], x_out: &[f64]) -> eyre::Result<Self> {
         let n_out = x_out.len();
         let n_in = x_in.len();
 
-        debug_assert!(n_in >= 2, "minimum 2 input samples are required!");
-        debug_assert!(n_out >= 1, "minimum 1 output sample is required!");
+        if n_in < 2 {
+            eyre::bail!("at least 2 input samples are required!");
+        }
+        if n_out < 1 {
+            eyre::bail!("at least 1 output sample in required!");
+        }
 
         let mut i0 = Vec::<usize>::with_capacity(n_out);
         let mut i1 = Vec::<usize>::with_capacity(n_out);

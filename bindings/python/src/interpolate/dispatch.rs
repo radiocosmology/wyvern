@@ -10,11 +10,11 @@ use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 
 use super::{ensure_array, require_ndim, split_complex_view, split_complex_view_mut};
-use crate::interpolate::core::{
+use wyvern::interpolate::{
     InterpolationPlan, Interpolator, IntoInterpolator, interp_last_ax_complex,
     interp_last_ax_complex_weighted, interp_last_ax_real, interp_last_ax_real_weighted,
 };
-use crate::types::ParFloatLike;
+use wyvern::types::ParFloatLike;
 
 // ------ Dispatch to typed methods ------
 
