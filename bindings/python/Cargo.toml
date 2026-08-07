@@ -1,0 +1,23 @@
+[package]
+name = "wyvern-py"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "wyvern"
+crate-type = ["cdylib"]
+doc = false
+
+[dependencies]
+ndarray = { version = "0.17.2", features = ["rayon"] }
+num-complex = "0.4.6"
+num-traits = "0.2.19"
+numpy = "0.29.0"
+pyo3 = { version = "0.29.0", default-features = false, features = ["eyre"] }
+wyvern = { path = "../../wyvern", features = ["mimalloc"] }
+
+[features]
+extension-module = ["pyo3/extension-module"]
+
+[lints]
+workspace = true

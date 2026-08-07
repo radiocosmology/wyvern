@@ -341,10 +341,19 @@ dependencies = [
  "eyre",
  "mimalloc",
  "ndarray",
+ "num-traits",
+ "paste",
+ "rayon",
+]
+
+[[package]]
+name = "wyvern-py"
+version = "0.4.0"
+dependencies = [
+ "ndarray",
  "num-complex",
  "num-traits",
  "numpy",
- "paste",
  "pyo3",
- "rayon",
+ "wyvern",
 ]
