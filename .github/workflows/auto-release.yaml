@@ -1,5 +1,5 @@
 ---
-name: interprs-auto-release
+name: wyvern-auto-release
 on:
   push:
     branches:
