@@ -32,7 +32,7 @@ jobs:
           # prevent cross-os issues
           prefix-key: "${{ runner.os }}-rust wv"
       - name: Build docs
-        run: cargo doc --no-deps --document-private-items
+        run: cargo doc --workspace --no-deps --document-private-items
       - name: Add redirect index.html
         run: |
           echo "<meta http-equiv=\"refresh\" content=\"0; url=wyvern/index.html\">" > target/doc/index.html
