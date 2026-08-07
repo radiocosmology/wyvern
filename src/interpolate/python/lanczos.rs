@@ -8,7 +8,7 @@ use numpy::{PyReadonlyArray1, PyUntypedArray, dtype};
 use pyo3::prelude::*;
 
 use super::{dispatch_unweighted, dispatch_weighted, require_dtype, require_ndim};
-use crate::core::DynamicKernelPlan;
+use crate::interpolate::core::DynamicKernelPlan;
 use crate::kernels::lanczos_kernel;
 
 /// Interpolate a 2D array using a Lanczos kernel.
