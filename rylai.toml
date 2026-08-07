@@ -11,7 +11,7 @@ all_include_private = true
 "numpy::PyReadonlyArray2" = "numpy.ndarray"
 
 [[add_content]]
-file = "interprs.pyi"
+file = "wyvern.pyi"
 location = "after-import-typing"
 content = """
 import numpy

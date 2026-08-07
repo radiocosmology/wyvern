@@ -1,5 +1,5 @@
 ---
-name: interprs-deploy-docs
+name: wyvern-deploy-docs
 on:
   pull_request:
     branches:
@@ -35,7 +35,7 @@ jobs:
         run: cargo doc --no-deps --document-private-items
       - name: Add redirect index.html
         run: |
-          echo "<meta http-equiv=\"refresh\" content=\"0; url=interprs/index.html\">" > target/doc/index.html
+          echo "<meta http-equiv=\"refresh\" content=\"0; url=wyvern/index.html\">" > target/doc/index.html
           touch target/doc/.nojekyll
       - name: Fix permissions
         run: chmod -c -R +rX "target/doc/"
