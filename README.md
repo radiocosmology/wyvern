@@ -1,5 +1,27 @@
-<h1 align="center">Fast algorithms</h1>
+<h1 align="center">wyvern</h1>
 
-- Python bindings
-- Supports `float32`, `float64`, `complex64`, `complex128` data types
-- Supports `float32`, `float64` weight types
+**wyvern** provides fast implementations of a variety of algorithms, motivated by
+the requirements of [draco](https://github.com/radiocosmology/draco).
+
+## Bindings
+- [Python](https://github.com/ljgray/wyvern/tree/main/bindings/python)
+
+## Installation
+
+To install from source:
+```bash
+pip install git+https://github.com/ljgray/wyvern.git#subdirectory=bindings/python
+```
+
+### Development
+
+This project uses [maturin](https://github.com/PyO3/maturin). For development work,
+clone the project and install into an active virtual environment:
+```bash
+pip install maturin
+
+cd bindings/python
+maturin develop [--release]
+```
+
+Installing with pip will always use a `release` build.
