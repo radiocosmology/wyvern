@@ -2,13 +2,13 @@
 name = "wyvern"
 version.workspace = true
 edition.workspace = true
+readme.workspace = true
 description = "A fast Rust extension for various numerical array algorithms"
 authors = ["Liam Gray <liam.gray@ubc.ca>"]
 license = "GPL-3.0-or-later"
 homepage = "https://github.com/ljgray/wyvern"
 repository = "https://github.com/ljgray/wyvern"
 documentation = "https://ljgray.github.io/wyvern/"
-readme = "./README.md"
 keywords = ["wyvern"]
 
 [lib]
