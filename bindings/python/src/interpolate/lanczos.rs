@@ -6,6 +6,8 @@
 //! - 32
 use numpy::{PyReadonlyArray1, PyUntypedArray, dtype};
 use pyo3::prelude::*;
+#[cfg(feature = "stub-gen")]
+use pyo3_stub_gen::derive::gen_stub_pyfunction;
 
 use super::{dispatch_unweighted, dispatch_weighted, require_dtype, require_ndim};
 use wyvern::interpolate::DynamicKernelPlan;
@@ -32,6 +34,10 @@ use wyvern::kernels::lanczos_kernel;
 /// -------
 /// ``y_out``
 ///     2D float or complex float array, shape (-1, ``n_out``)
+#[cfg_attr(
+    feature = "stub-gen",
+    gen_stub_pyfunction(module = "wyvern.interpolate")
+)]
 #[pyfunction]
 #[pyo3(signature = (x_in, x_out, n_taps, y_in, *, y_out = None))]
 pub fn interpolate_lanczos<'py>(
@@ -90,6 +96,10 @@ pub fn interpolate_lanczos<'py>(
 ///     2D float or complex float array, shape (-1, ``n_out``)
 /// ``w_out``
 ///     2D float array, shape (-1, ``n_out``)
+#[cfg_attr(
+    feature = "stub-gen",
+    gen_stub_pyfunction(module = "wyvern.interpolate")
+)]
 #[pyfunction]
 #[pyo3(signature = (x_in, x_out, n_taps, y_in, w_in, *, y_out = None, w_out = None))]
 pub fn interpolate_lanczos_weighted<'py>(
