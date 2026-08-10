@@ -11,9 +11,6 @@ repository = "https://github.com/ljgray/wyvern"
 documentation = "https://ljgray.github.io/wyvern/"
 keywords = ["wyvern"]
 
-[lib]
-name = "wyvern"
-
 [dependencies]
 eyre = "0.6.12"
 mimalloc = {version = "0.1.52", optional = true }

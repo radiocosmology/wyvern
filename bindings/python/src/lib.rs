@@ -3,6 +3,8 @@ mod importutil;
 mod interpolate;
 
 use pyo3::prelude::*;
+#[cfg(feature = "stub-gen")]
+use pyo3_stub_gen::define_stub_info_gatherer;
 
 #[pymodule]
 pub mod wyvern {
@@ -23,3 +25,6 @@ pub mod wyvern {
         Ok(())
     }
 }
+
+#[cfg(feature = "stub-gen")]
+define_stub_info_gatherer!(stub_info);

@@ -26,10 +26,11 @@ classifiers = [
 
 [tool.maturin]
 ## Cargo options
+python-source = "py_src"
 # uses release build with normal install, includes
 # debug info with editable install
 profile = "release"
-editable-profile = "release-with-debug-info"
+editable-profile = "dev"
 # builds as an extension module and uses a mildly
 # faster allocator
 features = ["extension-module"]
