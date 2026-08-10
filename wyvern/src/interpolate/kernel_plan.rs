@@ -88,6 +88,7 @@ impl<const N: usize> KernelPlan<N> {
             if span <= 0.0 {
                 eyre::bail!("inputs are unsorted or repeated!");
             }
+            let scaled_inv_span = 1.0 / (span * filter_scale);
 
             // construct a window a N taps centred on the bracket, clamped
             // to [0, n_in - N]. Coefficients must be renormalized. Center
@@ -112,7 +113,7 @@ impl<const N: usize> KernelPlan<N> {
             #[allow(clippy::indexing_slicing, reason = "indices are already clamped")]
             for k in 0..N {
                 let xi = x_in[base + k];
-                let dist = (xo - xi) / span / filter_scale;
+                let dist = (xo - xi) * scaled_inv_span;
                 let w = kernel(dist, a_half);
                 c[k] = w;
                 sum += w;
@@ -317,6 +318,9 @@ macro_rules! define_dynamic_kernel_plan {
                     n_taps: usize,
                     kernel: impl Fn(f64, f64) -> f64,
                 ) -> eyre::Result<Self> {
+                    if n_taps < 2 {
+                        eyre::bail!("require at least 2 taps!");
+                    }
                     // compute the required filter scaling
                     let (required_taps, filter_scale) = compute_scaled_taps(x_in, x_out, n_taps)?;
 
@@ -363,7 +367,7 @@ macro_rules! define_dynamic_kernel_plan {
 
 // powers of 2 + 1 seems like reasonable choices for no
 // valid reason
-define_dynamic_kernel_plan!(3, 5, 9, 17, 33, 65, 129, 257);
+define_dynamic_kernel_plan!(4, 8, 16, 32, 64, 128, 256);
 
 /// Kernel ratio scaling. Support is limited to be greater than 1.0,
 /// meaning that support is unchanged when upsampling

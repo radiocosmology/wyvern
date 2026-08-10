@@ -36,7 +36,7 @@ impl LinearPlan {
             eyre::bail!("at least 2 input samples are required!");
         }
         if n_out < 1 {
-            eyre::bail!("at least 1 output sample in required!");
+            eyre::bail!("at least 1 output sample is required!");
         }
 
         let mut i0 = Vec::<usize>::with_capacity(n_out);
