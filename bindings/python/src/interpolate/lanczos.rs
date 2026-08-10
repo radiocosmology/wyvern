@@ -62,7 +62,6 @@ pub fn interpolate_lanczos<'py>(
     let x_out_sl = x_out.as_slice()?;
 
     let plan = DynamicKernelPlan::build(x_in_sl, x_out_sl, n_taps, lanczos_kernel)?;
-    // let interpolator = plan.as_interpolator();
 
     dispatch_unweighted(py, &plan, y_in, y_out)
 }
