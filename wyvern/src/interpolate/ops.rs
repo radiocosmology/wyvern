@@ -6,7 +6,7 @@ use std::cell::UnsafeCell;
 use super::plan::Interpolator;
 use crate::types::ParFloatLike;
 
-/// Wrapper to allow &mut access into one Vec<f64> slot from
+/// Wrapper to allow &mut access into one `Vec<f64>` slot from
 /// multiple threads without a mutex.
 struct ScratchSlot(UnsafeCell<Vec<f64>>);
 unsafe impl Sync for ScratchSlot {}
