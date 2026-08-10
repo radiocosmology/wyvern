@@ -13,13 +13,11 @@ env:
   # CARGO_INCREMENTAL: 0
 
 jobs:
-  clippy:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.14"
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -29,9 +27,11 @@ jobs:
           shared-key: "ci-cache"
           # prevent cross-os issues
           prefix-key: "${{ runner.os }}-rust wv"
-      - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: cargo clippy --workspace --all-targets --release -- -D warnings
-      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - name: Install python 3.14
+        run: uv python install 3.14
+      - uses: extractions/setup-just@v4
+      - run: just clippy
+      - run: just check-stubs
 
   unit-tests:
     strategy:
@@ -53,12 +53,9 @@ jobs:
           shared-key: "ci-cache"
           # prevent cross-os issues
           prefix-key: "${{ runner.os }}-rust wv"
-      - name: Run unit tests in debug
-        run: cargo nextest run --workspace --profile ci --no-tests="warn"
+      - uses: extractions/setup-just@v4
+      - name: Run unit tests
+        run: just test
       - name: Run unit tests in release
         run: cargo nextest run --workspace --profile ci --release --no-tests="warn"
-      - name: Run wyvern unit tests in release with all features
-        run: cargo nextest run -p wyvern --profile ci --release --all-features --no-tests="warn"
-      - name: Run doctests
-        run: cargo test --doc --workspace --all-features
 

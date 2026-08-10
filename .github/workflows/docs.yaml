@@ -31,13 +31,10 @@ jobs:
           shared-key: "ci-cache"
           # prevent cross-os issues
           prefix-key: "${{ runner.os }}-rust wv"
-      - name: Build docs
-        run: cargo doc --workspace --no-deps --document-private-items
-      - name: Add redirect index.html
-        run: |
-          echo "<meta http-equiv=\"refresh\" content=\"0; url=wyvern/index.html\">" > target/doc/index.html
-          touch target/doc/.nojekyll
-      - name: Fix permissions
+      - uses: extractions/setup-just@v4
+      - name: Build and fix docs
+        run: just doc-hosted
+      - name: Update permissions
         run: chmod -c -R +rX "target/doc/"
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
