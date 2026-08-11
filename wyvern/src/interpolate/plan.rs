@@ -16,11 +16,15 @@ pub trait InterpolationPlan {
 
 /// Implements interpolation methods for float-like values
 pub trait Interpolator<T: FloatLike>: Sync {
-    // Interpolate a single row's data onto output points
+    /// Whether this interpolator requires a reusable scratch
+    /// mask buffer
+    fn needs_mask_scratch(&self) -> bool;
+
+    /// Interpolate a single row's data onto output points
     fn interp_row(&self, y_in: &ArrayView1<T>, y_out: ArrayViewMut1<T>);
 
-    // Interpolate a single row's data onto output points,
-    // and propagate corresponding inverse-variance weights
+    /// Interpolate a single row's data onto output points,
+    /// and propagate corresponding inverse-variance weights
     fn interp_row_with_variance(
         &self,
         y_in: &ArrayView1<T>,

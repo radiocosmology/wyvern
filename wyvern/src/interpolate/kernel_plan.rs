@@ -10,10 +10,9 @@ pub struct KernelPlan<const N: usize> {
     // kernel coefficients
     coeffs: Vec<[f64; N]>,
     // mask for valid samples
-    valid: Vec<f64>,
+    valid: Vec<bool>,
     // track the bracket indices for the kernel center
     center_a: Vec<usize>,
-    center_b: Vec<usize>,
 }
 
 impl<const N: usize> KernelPlan<N> {
@@ -60,9 +59,8 @@ impl<const N: usize> KernelPlan<N> {
 
         let mut i0 = Vec::<usize>::with_capacity(n_out);
         let mut center_a = Vec::<usize>::with_capacity(n_out);
-        let mut center_b = Vec::<usize>::with_capacity(n_out);
         let mut coeffs = Vec::with_capacity(n_out);
-        let mut valid = Vec::<f64>::with_capacity(n_out);
+        let mut valid = Vec::<bool>::with_capacity(n_out);
 
         // inputs are assumed to be sorted
         let mut lo: usize = 0;
@@ -132,9 +130,8 @@ impl<const N: usize> KernelPlan<N> {
 
             i0.push(base);
             center_a.push(lo);
-            center_b.push(lo + 1);
             coeffs.push(c);
-            valid.push(f64::from(!(distant || outside_window) && sum.is_finite()));
+            valid.push(!(distant || outside_window) && sum.is_finite());
         }
 
         Ok(Self {
@@ -142,7 +139,6 @@ impl<const N: usize> KernelPlan<N> {
             coeffs,
             valid,
             center_a,
-            center_b,
         })
     }
 }
@@ -162,6 +158,11 @@ impl<const N: usize> IntoInterpolator for KernelPlan<N> {
 }
 
 impl<T: FloatLike, const N: usize> Interpolator<T> for KernelPlan<N> {
+    #[inline]
+    fn needs_mask_scratch(&self) -> bool {
+        true
+    }
+
     #[inline]
     fn interp_row(&self, y_in: &ArrayView1<T>, mut y_out: ArrayViewMut1<T>) {
         let n_out = self.len();
@@ -268,12 +269,11 @@ impl<T: FloatLike, const N: usize> Interpolator<T> for KernelPlan<N> {
                 *y_out.uget_mut(j) = T::from_f64(value_acc * inv_norm);
                 // variance is normalized by the new coefficient sum squared, inverted,
                 // and multiplied with the sample masks
-                let valid = *self.valid.get_unchecked(j);
+                let valid = f64::from(*self.valid.get_unchecked(j));
                 // valid only if window center falls between two valid samples
                 let a_idx = *self.center_a.get_unchecked(j);
-                let b_idx = *self.center_b.get_unchecked(j);
                 let center_mask =
-                    *mask_scratch.get_unchecked(a_idx) * *mask_scratch.get_unchecked(b_idx);
+                    *mask_scratch.get_unchecked(a_idx) * *mask_scratch.get_unchecked(a_idx + 1);
                 let inv_var = invert_no_zero(var_acc);
                 *weight_out.uget_mut(j) =
                     T::from_f64(renorm * renorm * center_mask * valid * inv_var);

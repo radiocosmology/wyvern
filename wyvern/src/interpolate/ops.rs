@@ -21,7 +21,7 @@ fn make_scratch_pool(n_in: usize) -> Vec<ScratchSlot> {
 /// Interpolate over the last axis of a real array.
 #[inline]
 pub fn interp_last_ax_real<T>(
-    interpolator: &dyn Interpolator<T>,
+    interpolator: &(impl Interpolator<T> + ?Sized),
     y_in: &ArrayView2<T>,
     mut y_out: ArrayViewMut2<T>,
 ) where
@@ -42,7 +42,7 @@ pub fn interp_last_ax_real<T>(
 #[allow(clippy::too_many_arguments, reason = "inline helper function")]
 #[inline]
 pub fn interp_last_ax_complex<T>(
-    interpolator: &dyn Interpolator<T>,
+    interpolator: &(impl Interpolator<T> + ?Sized),
     y_re_in: &ArrayView2<T>,
     y_im_in: &ArrayView2<T>,
     mut y_re_out: ArrayViewMut2<T>,
@@ -67,7 +67,7 @@ pub fn interp_last_ax_complex<T>(
 /// with accompanying weights.
 #[inline]
 pub fn interp_last_ax_real_weighted<T>(
-    interpolator: &dyn Interpolator<T>,
+    interpolator: &(impl Interpolator<T> + ?Sized),
     y_in: &ArrayView2<T>,
     weight_in: &ArrayView2<T>,
     mut y_out: ArrayViewMut2<T>,
@@ -108,7 +108,7 @@ pub fn interp_last_ax_real_weighted<T>(
 #[allow(clippy::too_many_arguments, reason = "inline helper function")]
 #[inline]
 pub fn interp_last_ax_complex_weighted<T>(
-    interpolator: &dyn Interpolator<T>,
+    interpolator: &(impl Interpolator<T> + ?Sized),
     y_re_in: &ArrayView2<T>,
     y_im_in: &ArrayView2<T>,
     weight_in: &ArrayView2<T>,
