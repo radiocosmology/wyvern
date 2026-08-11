@@ -8,12 +8,10 @@ use ndarray::{ArrayView1, ArrayViewMut1};
 pub struct LinearPlan {
     // lower bracket index for input
     i0: Vec<usize>,
-    // upper brackeet index for input
-    i1: Vec<usize>,
     // interpolation coefficient for i1 sample (w0 = 1 - w1)
     c1: Vec<f64>,
     // mask for valid samples. 1.0 if valid, 0.0 otherwise
-    valid: Vec<f64>,
+    valid: Vec<bool>,
 }
 
 impl LinearPlan {
@@ -40,9 +38,8 @@ impl LinearPlan {
         }
 
         let mut i0 = Vec::<usize>::with_capacity(n_out);
-        let mut i1 = Vec::<usize>::with_capacity(n_out);
         let mut c1 = Vec::<f64>::with_capacity(n_out);
-        let mut valid = Vec::<f64>::with_capacity(n_out);
+        let mut valid = Vec::<bool>::with_capacity(n_out);
 
         // both inputs are sorted, so step only advances forward. error
         // is eventually returned if this assumption fails
@@ -76,16 +73,15 @@ impl LinearPlan {
             // either input sample
             let distant = (b - xo).abs() > delta || (a - xo).abs() > delta;
             // mask
-            valid.push(f64::from(!distant));
+            valid.push(!distant);
 
             // interpolation indices
             i0.push(lo);
-            i1.push(lo + 1);
             // weight coefficient
             c1.push((xo - a) / span);
         }
 
-        Ok(Self { i0, i1, c1, valid })
+        Ok(Self { i0, c1, valid })
     }
 }
 
@@ -105,6 +101,11 @@ impl IntoInterpolator for LinearPlan {
 
 impl<T: FloatLike> Interpolator<T> for LinearPlan {
     #[inline]
+    fn needs_mask_scratch(&self) -> bool {
+        false
+    }
+
+    #[inline]
     fn interp_row(&self, y_in: &ArrayView1<T>, mut y_out: ArrayViewMut1<T>) {
         let n_out = self.len();
 
@@ -114,7 +115,7 @@ impl<T: FloatLike> Interpolator<T> for LinearPlan {
             for j in 0..n_out {
                 // extract the interpolation indices and weight
                 let i0 = *self.i0.get_unchecked(j);
-                let i1 = *self.i1.get_unchecked(j);
+                let i1 = i0 + 1;
                 // interpolation coefficients
                 let s1 = *self.c1.get_unchecked(j);
 
@@ -156,7 +157,7 @@ impl<T: FloatLike> Interpolator<T> for LinearPlan {
             for j in 0..n_out {
                 // extract the interpolation indices and weight
                 let i0 = *self.i0.get_unchecked(j);
-                let i1 = *self.i1.get_unchecked(j);
+                let i1 = i0 + 1;
                 // interpolation coefficients
                 let s1 = *self.c1.get_unchecked(j);
 
@@ -168,7 +169,7 @@ impl<T: FloatLike> Interpolator<T> for LinearPlan {
                 // propagate weights and masking
                 let var_a = *var_scratch.get_unchecked(i0);
                 let var_b = *var_scratch.get_unchecked(i1);
-                let valid = *self.valid.get_unchecked(j);
+                let valid = f64::from(*self.valid.get_unchecked(j));
 
                 let s0 = 1.0 - s1;
                 // NaN guard: (0.0 * inf) -> NaN -> clamped to 0.0
