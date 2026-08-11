@@ -30,6 +30,13 @@ pub trait Interpolator<T: FloatLike>: Sync {
         y_out: ArrayViewMut1<T>,
         weight_out: ArrayViewMut1<T>,
     );
+
+    /// Whether this interpolator requires a reusable mask scratch buffer
+    /// for weighted interpolation.
+    #[inline]
+    fn needs_mask_scratch(&self) -> bool {
+        true
+    }
 }
 
 /// Implements methods to convert this to a typed [`Interpolator`]

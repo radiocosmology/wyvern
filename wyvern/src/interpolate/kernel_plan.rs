@@ -10,10 +10,9 @@ pub struct KernelPlan<const N: usize> {
     // kernel coefficients
     coeffs: Vec<[f64; N]>,
     // mask for valid samples
-    valid: Vec<f64>,
+    valid: Vec<bool>,
     // track the bracket indices for the kernel center
     center_a: Vec<usize>,
-    center_b: Vec<usize>,
 }
 
 impl<const N: usize> KernelPlan<N> {
@@ -60,9 +59,8 @@ impl<const N: usize> KernelPlan<N> {
 
         let mut i0 = Vec::<usize>::with_capacity(n_out);
         let mut center_a = Vec::<usize>::with_capacity(n_out);
-        let mut center_b = Vec::<usize>::with_capacity(n_out);
         let mut coeffs = Vec::with_capacity(n_out);
-        let mut valid = Vec::<f64>::with_capacity(n_out);
+        let mut valid = Vec::<bool>::with_capacity(n_out);
 
         // inputs are assumed to be sorted
         let mut lo: usize = 0;
@@ -132,9 +130,8 @@ impl<const N: usize> KernelPlan<N> {
 
             i0.push(base);
             center_a.push(lo);
-            center_b.push(lo + 1);
             coeffs.push(c);
-            valid.push(f64::from(!(distant || outside_window) && sum.is_finite()));
+            valid.push(!(distant || outside_window) && sum.is_finite());
         }
 
         Ok(Self {
@@ -142,7 +139,6 @@ impl<const N: usize> KernelPlan<N> {
             coeffs,
             valid,
             center_a,
-            center_b,
         })
     }
 }
@@ -177,7 +173,7 @@ impl<T: FloatLike, const N: usize> Interpolator<T> for KernelPlan<N> {
                 // indices and coefficients
                 let i0 = *self.i0.get_unchecked(j);
                 let coeffs = (*self.coeffs.get_unchecked(j)).as_ptr();
-                let yj = y_in.as_ptr().add(i0 + ystride);
+                let yj = y_in.as_ptr().add(i0 * ystride);
 
                 // interpolate
                 let mut value_acc: f64 = 0.0;
@@ -227,6 +223,8 @@ impl<T: FloatLike, const N: usize> Interpolator<T> for KernelPlan<N> {
                 *mask_scratch.get_unchecked_mut(k) = f64::from(w.is_finite() && w > 0.0);
             }
 
+            let all_valid = mask_scratch.iter().all(|&m| m > 0.0);
+
             for j in 0..n_out {
                 // indices and coefficients
                 let i0 = *self.i0.get_unchecked(j);
@@ -243,23 +241,35 @@ impl<T: FloatLike, const N: usize> Interpolator<T> for KernelPlan<N> {
                 let mut value_acc: f64 = 0.0;
                 let mut var_acc: f64 = 0.0;
 
-                #[allow(
-                    clippy::cast_possible_truncation,
-                    clippy::cast_sign_loss,
-                    reason = "mask values are only 0.0 or 1.0"
-                )]
-                for k in 0..N {
-                    let ck = *coeffs.add(k);
-                    let vk = *vj.add(k);
-                    let mk = *mj.add(k);
-                    let yk = (*yj.add(k * ystride)).as_();
+                if all_valid {
+                    for k in 0..N {
+                        let ck = *coeffs.add(k);
+                        let vk = *vj.add(k);
+                        let yk = (*yj.add(k * ystride)).as_();
 
-                    // accumulate data and variance
-                    let mck = mk * ck;
-                    value_acc = mck.mul_add(yk, value_acc);
-                    var_acc = (mck * ck).mul_add(vk, var_acc);
-                    // accumulate updated coefficient norm
-                    renorm += mck;
+                        value_acc = ck.mul_add(yk, value_acc);
+                        var_acc = (ck * ck).mul_add(vk, var_acc);
+                        renorm += ck;
+                    }
+                } else {
+                    #[allow(
+                        clippy::cast_possible_truncation,
+                        clippy::cast_sign_loss,
+                        reason = "mask values are only 0.0 or 1.0"
+                    )]
+                    for k in 0..N {
+                        let ck = *coeffs.add(k);
+                        let vk = *vj.add(k);
+                        let mk = *mj.add(k);
+                        let yk = (*yj.add(k * ystride)).as_();
+
+                        // accumulate data and variance
+                        let mck = mk * ck;
+                        value_acc = mck.mul_add(yk, value_acc);
+                        var_acc = (mck * ck).mul_add(vk, var_acc);
+                        // accumulate updated coefficient norm
+                        renorm += mck;
+                    }
                 }
 
                 // Invert the norm, zeroing the sample if `renorm` is zero. The
@@ -268,12 +278,14 @@ impl<T: FloatLike, const N: usize> Interpolator<T> for KernelPlan<N> {
                 *y_out.uget_mut(j) = T::from_f64(value_acc * inv_norm);
                 // variance is normalized by the new coefficient sum squared, inverted,
                 // and multiplied with the sample masks
-                let valid = *self.valid.get_unchecked(j);
+                let valid = f64::from(*self.valid.get_unchecked(j));
                 // valid only if window center falls between two valid samples
                 let a_idx = *self.center_a.get_unchecked(j);
-                let b_idx = *self.center_b.get_unchecked(j);
-                let center_mask =
-                    *mask_scratch.get_unchecked(a_idx) * *mask_scratch.get_unchecked(b_idx);
+                let center_mask = if all_valid {
+                    1.0
+                } else {
+                    *mask_scratch.get_unchecked(a_idx) * *mask_scratch.get_unchecked(a_idx + 1)
+                };
                 let inv_var = invert_no_zero(var_acc);
                 *weight_out.uget_mut(j) =
                     T::from_f64(renorm * renorm * center_mask * valid * inv_var);
@@ -357,7 +369,36 @@ macro_rules! define_dynamic_kernel_plan {
                     $( KernelPlan<$n>: Interpolator<T>, )+
                 {
                     match self {
-                        $( Self::[<W $n>](p) => p, )+
+                        $( Self::[<W $n>](p) => p as &dyn Interpolator<T>, )+
+                    }
+                }
+            }
+
+            impl<T: FloatLike> Interpolator<T> for DynamicKernelPlan
+            where
+                $( KernelPlan<$n>: Interpolator<T>, )+
+            {
+                #[inline]
+                fn interp_row(&self, y_in: &ArrayView1<T>, y_out: ArrayViewMut1<T>) {
+                    match self {
+                        $( Self::[<W $n>](p) => p.interp_row(y_in, y_out), )+
+                    }
+                }
+
+                #[inline]
+                fn interp_row_with_variance(
+                    &self,
+                    y_in: &ArrayView1<T>,
+                    weight_in: &ArrayView1<T>,
+                    var_scratch: &mut [f64],
+                    mask_scratch: &mut [f64],
+                    y_out: ArrayViewMut1<T>,
+                    weight_out: ArrayViewMut1<T>,
+                ) {
+                    match self {
+                        $( Self::[<W $n>](p) => p.interp_row_with_variance(
+                            y_in, weight_in, var_scratch, mask_scratch, y_out, weight_out
+                        ), )+
                     }
                 }
             }

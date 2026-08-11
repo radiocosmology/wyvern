@@ -1,11 +1,69 @@
 //! Python wrapper for linear interpolator.
 use numpy::{PyReadonlyArray1, PyUntypedArray, dtype};
+use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 #[cfg(feature = "stub-gen")]
 use pyo3_stub_gen::derive::gen_stub_pyfunction;
+use std::collections::{HashMap, VecDeque, hash_map::DefaultHasher};
+use std::hash::{Hash, Hasher};
+use std::sync::{Arc, LazyLock, Mutex};
 
 use super::{dispatch_unweighted, dispatch_weighted, require_dtype, require_ndim};
 use wyvern::interpolate::LinearPlan;
+
+const PLAN_CACHE_LIMIT: usize = 32;
+
+#[derive(Clone, Copy, Hash, Eq, PartialEq)]
+struct LinearPlanKey {
+    x_in_hash: u64,
+    x_out_hash: u64,
+    n_in: usize,
+    n_out: usize,
+}
+
+#[derive(Default)]
+struct LinearPlanCache {
+    order: VecDeque<LinearPlanKey>,
+    plans: HashMap<LinearPlanKey, Arc<LinearPlan>>,
+}
+
+fn hash_samples(samples: &[f64]) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    for sample in samples {
+        sample.to_bits().hash(&mut hasher);
+    }
+    hasher.finish()
+}
+
+fn get_cached_linear_plan(x_in: &[f64], x_out: &[f64]) -> PyResult<Arc<LinearPlan>> {
+    static LINEAR_PLAN_CACHE: LazyLock<Mutex<LinearPlanCache>> =
+        LazyLock::new(|| Mutex::new(LinearPlanCache::default()));
+
+    let key = LinearPlanKey {
+        x_in_hash: hash_samples(x_in),
+        x_out_hash: hash_samples(x_out),
+        n_in: x_in.len(),
+        n_out: x_out.len(),
+    };
+
+    let mut cache = LINEAR_PLAN_CACHE
+        .lock()
+        .map_err(|_| PyRuntimeError::new_err("linear plan cache lock poisoned"))?;
+    if let Some(plan) = cache.plans.get(&key) {
+        return Ok(Arc::clone(plan));
+    }
+
+    let plan = Arc::new(LinearPlan::build(x_in, x_out)?);
+    cache.order.push_back(key);
+    cache.plans.insert(key, Arc::clone(&plan));
+    if cache.order.len() > PLAN_CACHE_LIMIT
+        && let Some(evict) = cache.order.pop_front()
+    {
+        cache.plans.remove(&evict);
+    }
+
+    Ok(plan)
+}
 
 /// Linearly interpolate a 2D array.
 ///
@@ -52,10 +110,10 @@ pub fn interpolate_linear<'py>(
     let x_out: PyReadonlyArray1<f64> = x_out.extract()?;
     let x_out_sl = x_out.as_slice()?;
 
-    // construct the interpolation plan
-    let plan = LinearPlan::build(x_in_sl, x_out_sl)?;
+    // construct or reuse interpolation plan
+    let plan = get_cached_linear_plan(x_in_sl, x_out_sl)?;
 
-    dispatch_unweighted(py, &plan, y_in, y_out)
+    dispatch_unweighted(py, plan.as_ref(), y_in, y_out)
 }
 
 /// Linearly interpolate a 2D array with corresponding weights.
@@ -112,8 +170,8 @@ pub fn interpolate_linear_weighted<'py>(
     let x_out: PyReadonlyArray1<f64> = x_out.extract()?;
     let x_out_sl = x_out.as_slice()?;
 
-    // construct the interpolation plan
-    let plan = LinearPlan::build(x_in_sl, x_out_sl)?;
+    // construct or reuse interpolation plan
+    let plan = get_cached_linear_plan(x_in_sl, x_out_sl)?;
 
-    dispatch_weighted(py, &plan, y_in, w_in, y_out, w_out)
+    dispatch_weighted(py, plan.as_ref(), y_in, w_in, y_out, w_out)
 }

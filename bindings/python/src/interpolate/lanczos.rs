@@ -5,13 +5,82 @@
 //! - 16
 //! - 32
 use numpy::{PyReadonlyArray1, PyUntypedArray, dtype};
+use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 #[cfg(feature = "stub-gen")]
 use pyo3_stub_gen::derive::gen_stub_pyfunction;
+use std::collections::{HashMap, VecDeque, hash_map::DefaultHasher};
+use std::hash::{Hash, Hasher};
+use std::sync::{Arc, LazyLock, Mutex};
 
 use super::{dispatch_unweighted, dispatch_weighted, require_dtype, require_ndim};
 use wyvern::interpolate::DynamicKernelPlan;
 use wyvern::kernels::lanczos_kernel;
+
+const PLAN_CACHE_LIMIT: usize = 32;
+
+#[derive(Clone, Copy, Hash, Eq, PartialEq)]
+struct LanczosPlanKey {
+    x_in_hash: u64,
+    x_out_hash: u64,
+    n_in: usize,
+    n_out: usize,
+    n_taps: usize,
+}
+
+#[derive(Default)]
+struct LanczosPlanCache {
+    order: VecDeque<LanczosPlanKey>,
+    plans: HashMap<LanczosPlanKey, Arc<DynamicKernelPlan>>,
+}
+
+fn hash_samples(samples: &[f64]) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    for sample in samples {
+        sample.to_bits().hash(&mut hasher);
+    }
+    hasher.finish()
+}
+
+fn get_cached_lanczos_plan(
+    x_in: &[f64],
+    x_out: &[f64],
+    n_taps: usize,
+) -> PyResult<Arc<DynamicKernelPlan>> {
+    static LANCZOS_PLAN_CACHE: LazyLock<Mutex<LanczosPlanCache>> =
+        LazyLock::new(|| Mutex::new(LanczosPlanCache::default()));
+
+    let key = LanczosPlanKey {
+        x_in_hash: hash_samples(x_in),
+        x_out_hash: hash_samples(x_out),
+        n_in: x_in.len(),
+        n_out: x_out.len(),
+        n_taps,
+    };
+
+    let mut cache = LANCZOS_PLAN_CACHE
+        .lock()
+        .map_err(|_| PyRuntimeError::new_err("lanczos plan cache lock poisoned"))?;
+    if let Some(plan) = cache.plans.get(&key) {
+        return Ok(Arc::clone(plan));
+    }
+
+    let plan = Arc::new(DynamicKernelPlan::build(
+        x_in,
+        x_out,
+        n_taps,
+        lanczos_kernel,
+    )?);
+    cache.order.push_back(key);
+    cache.plans.insert(key, Arc::clone(&plan));
+    if cache.order.len() > PLAN_CACHE_LIMIT
+        && let Some(evict) = cache.order.pop_front()
+    {
+        cache.plans.remove(&evict);
+    }
+
+    Ok(plan)
+}
 
 /// Interpolate a 2D array using a Lanczos kernel.
 ///
@@ -61,9 +130,9 @@ pub fn interpolate_lanczos<'py>(
     let x_out: PyReadonlyArray1<f64> = x_out.extract()?;
     let x_out_sl = x_out.as_slice()?;
 
-    let plan = DynamicKernelPlan::build(x_in_sl, x_out_sl, n_taps, lanczos_kernel)?;
+    let plan = get_cached_lanczos_plan(x_in_sl, x_out_sl, n_taps)?;
 
-    dispatch_unweighted(py, &plan, y_in, y_out)
+    dispatch_unweighted(py, plan.as_ref(), y_in, y_out)
 }
 
 /// Interpolate a 2D array with corresponding weights using a Lanczos kernel.
@@ -123,7 +192,7 @@ pub fn interpolate_lanczos_weighted<'py>(
     let x_out: PyReadonlyArray1<f64> = x_out.extract()?;
     let x_out_sl = x_out.as_slice()?;
 
-    let plan = DynamicKernelPlan::build(x_in_sl, x_out_sl, n_taps, lanczos_kernel)?;
+    let plan = get_cached_lanczos_plan(x_in_sl, x_out_sl, n_taps)?;
 
-    dispatch_weighted(py, &plan, y_in, w_in, y_out, w_out)
+    dispatch_weighted(py, plan.as_ref(), y_in, w_in, y_out, w_out)
 }
