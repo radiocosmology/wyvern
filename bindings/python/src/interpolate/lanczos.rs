@@ -9,22 +9,20 @@ use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 #[cfg(feature = "stub-gen")]
 use pyo3_stub_gen::derive::gen_stub_pyfunction;
-use std::collections::{HashMap, VecDeque, hash_map::DefaultHasher};
-use std::hash::{Hash, Hasher};
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, LazyLock, Mutex};
 
-use super::{dispatch_unweighted, dispatch_weighted, require_dtype, require_ndim};
+use super::{
+    PLAN_CACHE_LIMIT, dispatch_unweighted, dispatch_weighted, require_dtype, require_ndim,
+    samples_to_bits,
+};
 use wyvern::interpolate::DynamicKernelPlan;
 use wyvern::kernels::lanczos_kernel;
 
-const PLAN_CACHE_LIMIT: usize = 32;
-
-#[derive(Clone, Copy, Hash, Eq, PartialEq)]
+#[derive(Clone, Hash, Eq, PartialEq)]
 struct LanczosPlanKey {
-    x_in_hash: u64,
-    x_out_hash: u64,
-    n_in: usize,
-    n_out: usize,
+    x_in_bits: Box<[u64]>,
+    x_out_bits: Box<[u64]>,
     n_taps: usize,
 }
 
@@ -32,14 +30,6 @@ struct LanczosPlanKey {
 struct LanczosPlanCache {
     order: VecDeque<LanczosPlanKey>,
     plans: HashMap<LanczosPlanKey, Arc<DynamicKernelPlan>>,
-}
-
-fn hash_samples(samples: &[f64]) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    for sample in samples {
-        sample.to_bits().hash(&mut hasher);
-    }
-    hasher.finish()
 }
 
 fn get_cached_lanczos_plan(
@@ -51,10 +41,8 @@ fn get_cached_lanczos_plan(
         LazyLock::new(|| Mutex::new(LanczosPlanCache::default()));
 
     let key = LanczosPlanKey {
-        x_in_hash: hash_samples(x_in),
-        x_out_hash: hash_samples(x_out),
-        n_in: x_in.len(),
-        n_out: x_out.len(),
+        x_in_bits: samples_to_bits(x_in),
+        x_out_bits: samples_to_bits(x_out),
         n_taps,
     };
 
@@ -71,7 +59,7 @@ fn get_cached_lanczos_plan(
         n_taps,
         lanczos_kernel,
     )?);
-    cache.order.push_back(key);
+    cache.order.push_back(key.clone());
     cache.plans.insert(key, Arc::clone(&plan));
     if cache.order.len() > PLAN_CACHE_LIMIT
         && let Some(evict) = cache.order.pop_front()

@@ -9,6 +9,17 @@ mod utils;
 pub use dispatch::*;
 pub use utils::*;
 
+pub const PLAN_CACHE_LIMIT: usize = 32;
+
+#[inline]
+pub fn samples_to_bits(samples: &[f64]) -> Box<[u64]> {
+    samples
+        .iter()
+        .map(|sample| sample.to_bits())
+        .collect::<Vec<_>>()
+        .into_boxed_slice()
+}
+
 #[pymodule(submodule)]
 pub mod interpolate {
     use pyo3::prelude::*;

@@ -23,7 +23,9 @@ fn scratch_pool() -> &'static [ScratchSlot] {
     static SCRATCH_POOL: OnceLock<Vec<ScratchSlot>> = OnceLock::new();
     SCRATCH_POOL
         .get_or_init(|| {
-            let num_threads = rayon::current_num_threads().max(1);
+            let available_threads =
+                std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
+            let num_threads = rayon::current_num_threads().max(available_threads);
             (0..num_threads)
                 .map(|_| {
                     ScratchSlot(UnsafeCell::new(ScratchBuffers {

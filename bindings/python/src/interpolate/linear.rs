@@ -4,21 +4,19 @@ use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 #[cfg(feature = "stub-gen")]
 use pyo3_stub_gen::derive::gen_stub_pyfunction;
-use std::collections::{HashMap, VecDeque, hash_map::DefaultHasher};
-use std::hash::{Hash, Hasher};
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, LazyLock, Mutex};
 
-use super::{dispatch_unweighted, dispatch_weighted, require_dtype, require_ndim};
+use super::{
+    PLAN_CACHE_LIMIT, dispatch_unweighted, dispatch_weighted, require_dtype, require_ndim,
+    samples_to_bits,
+};
 use wyvern::interpolate::LinearPlan;
 
-const PLAN_CACHE_LIMIT: usize = 32;
-
-#[derive(Clone, Copy, Hash, Eq, PartialEq)]
+#[derive(Clone, Hash, Eq, PartialEq)]
 struct LinearPlanKey {
-    x_in_hash: u64,
-    x_out_hash: u64,
-    n_in: usize,
-    n_out: usize,
+    x_in_bits: Box<[u64]>,
+    x_out_bits: Box<[u64]>,
 }
 
 #[derive(Default)]
@@ -27,23 +25,13 @@ struct LinearPlanCache {
     plans: HashMap<LinearPlanKey, Arc<LinearPlan>>,
 }
 
-fn hash_samples(samples: &[f64]) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    for sample in samples {
-        sample.to_bits().hash(&mut hasher);
-    }
-    hasher.finish()
-}
-
 fn get_cached_linear_plan(x_in: &[f64], x_out: &[f64]) -> PyResult<Arc<LinearPlan>> {
     static LINEAR_PLAN_CACHE: LazyLock<Mutex<LinearPlanCache>> =
         LazyLock::new(|| Mutex::new(LinearPlanCache::default()));
 
     let key = LinearPlanKey {
-        x_in_hash: hash_samples(x_in),
-        x_out_hash: hash_samples(x_out),
-        n_in: x_in.len(),
-        n_out: x_out.len(),
+        x_in_bits: samples_to_bits(x_in),
+        x_out_bits: samples_to_bits(x_out),
     };
 
     let mut cache = LINEAR_PLAN_CACHE
@@ -54,7 +42,7 @@ fn get_cached_linear_plan(x_in: &[f64], x_out: &[f64]) -> PyResult<Arc<LinearPla
     }
 
     let plan = Arc::new(LinearPlan::build(x_in, x_out)?);
-    cache.order.push_back(key);
+    cache.order.push_back(key.clone());
     cache.plans.insert(key, Arc::clone(&plan));
     if cache.order.len() > PLAN_CACHE_LIMIT
         && let Some(evict) = cache.order.pop_front()

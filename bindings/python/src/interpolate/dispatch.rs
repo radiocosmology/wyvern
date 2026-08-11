@@ -72,7 +72,7 @@ where
 {
     // bounds checks, type checks, etc...
     require_ndim(Some(y_in), "y_in", 2)?;
-    require_ndim(y_out, "y_in", 2)?;
+    require_ndim(y_out, "y_out", 2)?;
 
     // sort out the expected output array shape
     #[allow(clippy::indexing_slicing, reason = "ndim already validated")]
