@@ -83,8 +83,8 @@ pub fn require_dtype(
     Ok(())
 }
 
-/// zero-copy reinterpret of a Complex<T> buffer to two interleaved
-/// Float<T> buffers.
+/// zero-copy reinterpret of a `Complex<T>` buffer to two interleaved
+/// `Float<T>` buffers.
 pub unsafe fn split_complex_view<'a, T: Copy>(
     view: &ArrayView2<'a, Complex<T>>,
 ) -> (ArrayView2<'a, T>, ArrayView2<'a, T>) {

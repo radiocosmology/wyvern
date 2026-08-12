@@ -13,15 +13,23 @@ To install from source:
 pip install git+https://github.com/ljgray/wyvern.git#subdirectory=bindings/python
 ```
 
-### Development
+## Development
+### Tools
 
-This project uses [maturin](https://github.com/PyO3/maturin). For development work,
-clone the project and install into an active virtual environment:
+This project uses [just](https://github.com/casey/just) as a command runner, which
+doubles as a library of recipes for building, linting, etc...
+
+List all available commands:
+```bash
+just
+```
+
+Python bindings are built using [maturin](https://github.com/PyO3/maturin). For
+development work, clone the project and install into an active virtual environment:
 ```bash
 pip install maturin
 
-cd bindings/python
-maturin develop [--release]
+just develop
 ```
 
 Installing with pip will always use a `release` build.
