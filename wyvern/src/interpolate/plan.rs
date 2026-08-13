@@ -16,10 +16,6 @@ pub trait InterpolationPlan {
 
 /// Implements interpolation methods for float-like values
 pub trait Interpolator<T: FloatLike>: Sync {
-    /// Whether this interpolator requires a reusable scratch
-    /// mask buffer
-    fn needs_mask_scratch(&self) -> bool;
-
     /// Interpolate a single row's data onto output points
     fn interp_row(&self, y_in: &ArrayView1<T>, y_out: ArrayViewMut1<T>);
 
@@ -74,4 +70,20 @@ pub fn median_abs_sample_spacing(x: &[f64]) -> f64 {
     } else {
         upper
     }
+}
+
+/// invert a value, or return zero if the value is zero
+#[inline]
+pub fn invert_no_zero(x: f64) -> f64 {
+    if x == 0.0 { 0.0 } else { 1.0 / x }
+}
+
+#[inline]
+#[allow(dead_code, reason = "testing")]
+pub fn invert_no_zero_branchless(x: f64) -> f64 {
+    let inv = 1.0 / x;
+    // bitmask - all zeros if x is zero, all ones otherwise
+    let bitmask = u64::from(x != 0.0).wrapping_neg();
+
+    f64::from_bits(inv.to_bits() & bitmask)
 }

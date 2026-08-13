@@ -23,14 +23,14 @@ struct ScratchPool(Vec<ScratchSlot>);
 impl ScratchPool {
     /// Make a new pool. Only allocates a mask buffer if required
     /// by the caller.
-    fn build(n_in: usize, needs_mask: bool) -> Self {
+    fn build(n_in: usize) -> Self {
         let num_threads = rayon::current_num_threads();
         Self(
             (0..num_threads)
                 .map(|_| {
                     ScratchSlot(UnsafeCell::new(ScratchBuffers {
                         var: vec![0.0; n_in],
-                        mask: if needs_mask { vec![0.0; n_in] } else { vec![] },
+                        mask: vec![0.0; n_in],
                     }))
                 })
                 .collect(),
@@ -107,7 +107,7 @@ pub fn interp_last_ax_real_weighted<T>(
 {
     // update the scratch buffer size
     let n_in = y_in.ncols();
-    let pool = ScratchPool::build(n_in, interpolator.needs_mask_scratch());
+    let pool = ScratchPool::build(n_in);
 
     // iterate over the 0th axis and interpolate the 1st
     // (contiguous) axis
@@ -140,7 +140,7 @@ pub fn interp_last_ax_complex_weighted<T>(
 {
     // update the scratch buffer size
     let n_in = y_re_in.ncols();
-    let pool = ScratchPool::build(n_in, interpolator.needs_mask_scratch());
+    let pool = ScratchPool::build(n_in);
 
     // iterate over the 0th axis and interpolate the 1st
     // (contiguous) axis
