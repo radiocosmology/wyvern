@@ -23,6 +23,10 @@ pub trait Interpolator<T: FloatLike>: Sync {
     /// Interpolate a single row's data onto output points
     fn interp_row(&self, y_in: &ArrayView1<T>, y_out: ArrayViewMut1<T>);
 
+    /// Interpolate a single row's data onto output poi ts,
+    /// accounting for an input mask
+    fn interp_row_masked(&self, y_in: &ArrayView1<T>, mask_in: &mut [f64], y_out: ArrayViewMut1<T>);
+
     /// Interpolate a single row's data onto output points,
     /// and propagate corresponding inverse-variance weights
     fn interp_row_with_variance(

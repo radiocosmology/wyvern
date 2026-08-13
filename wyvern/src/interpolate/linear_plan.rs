@@ -102,7 +102,7 @@ impl IntoInterpolator for LinearPlan {
 impl<T: FloatLike> Interpolator<T> for LinearPlan {
     #[inline]
     fn needs_mask_scratch(&self) -> bool {
-        false
+        true
     }
 
     #[inline]
@@ -128,12 +128,45 @@ impl<T: FloatLike> Interpolator<T> for LinearPlan {
     }
 
     #[inline]
+    fn interp_row_masked(
+        &self,
+        y_in: &ArrayView1<T>,
+        mask_in: &mut [f64],
+        mut y_out: ArrayViewMut1<T>,
+    ) {
+        let n_in = y_in.len();
+        let n_out = self.len();
+
+        debug_assert_eq!(n_in, mask_in.len());
+        debug_assert_eq!(n_out, y_out.len());
+
+        unsafe {
+            for j in 0..n_out {
+                // extract the interpolation indices and weight
+                let i0 = *self.i0.get_unchecked(j);
+                let i1 = i0 + 1;
+                // interpolation coefficients
+                let s1 = *self.c1.get_unchecked(j);
+
+                // check if sample is valid from the plan or masked
+                // from the input mask
+                let valid = f64::from(*self.valid.get_unchecked(j)) * *mask_in.get_unchecked(j);
+
+                // interpolate data onto the target sample
+                let a: f64 = (*y_in.uget(i0)).as_();
+                let b: f64 = (*y_in.uget(i1)).as_();
+                *y_out.uget_mut(j) = T::from_f64(valid * (b - a).mul_add(s1, a));
+            }
+        }
+    }
+
+    #[inline]
     fn interp_row_with_variance(
         &self,
         y_in: &ArrayView1<T>,
         weight_in: &ArrayView1<T>,
         var_scratch: &mut [f64],
-        _mask_scratch: &mut [f64],
+        mask_scratch: &mut [f64],
         mut y_out: ArrayViewMut1<T>,
         mut weight_out: ArrayViewMut1<T>,
     ) {
@@ -152,6 +185,7 @@ impl<T: FloatLike> Interpolator<T> for LinearPlan {
             for k in 0..n_in {
                 let w: f64 = (*weight_in.uget(k)).as_();
                 *var_scratch.get_unchecked_mut(k) = 1.0 / w;
+                *mask_scratch.get_unchecked_mut(k) = f64::from(w.is_finite() && w > 0.0);
             }
 
             for j in 0..n_out {
@@ -161,15 +195,19 @@ impl<T: FloatLike> Interpolator<T> for LinearPlan {
                 // interpolation coefficients
                 let s1 = *self.c1.get_unchecked(j);
 
+                // check if sample is valid from the plan or masked
+                // from the input mask
+                let valid =
+                    f64::from(*self.valid.get_unchecked(j)) * *mask_scratch.get_unchecked(j);
+
                 // interpolate data onto the target sample
                 let a: f64 = (*y_in.uget(i0)).as_();
                 let b: f64 = (*y_in.uget(i1)).as_();
-                *y_out.uget_mut(j) = T::from_f64((b - a).mul_add(s1, a));
+                *y_out.uget_mut(j) = T::from_f64(valid * (b - a).mul_add(s1, a));
 
                 // propagate weights and masking
                 let var_a = *var_scratch.get_unchecked(i0);
                 let var_b = *var_scratch.get_unchecked(i1);
-                let valid = f64::from(*self.valid.get_unchecked(j));
 
                 let s0 = 1.0 - s1;
                 // NaN guard: (0.0 * inf) -> NaN -> clamped to 0.0

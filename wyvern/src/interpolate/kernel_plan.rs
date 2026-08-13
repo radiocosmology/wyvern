@@ -196,6 +196,72 @@ impl<T: FloatLike, const N: usize> Interpolator<T> for KernelPlan<N> {
     }
 
     #[inline]
+    fn interp_row_masked(
+        &self,
+        y_in: &ArrayView1<T>,
+        mask_in: &mut [f64],
+        mut y_out: ArrayViewMut1<T>,
+    ) {
+        let n_in = y_in.len();
+        let n_out = self.len();
+
+        // `y_in` might have stride 2 if this is a view into a complex array
+        let ystride = y_in.stride_of(Axis(0));
+        debug_assert!(ystride > 0, "y must have positive strides");
+        let ystride = ystride.cast_unsigned();
+
+        debug_assert_eq!(n_in, mask_in.len());
+        debug_assert_eq!(n_out, y_out.len());
+
+        unsafe {
+            for j in 0..n_out {
+                // indices and coefficients
+                let i0 = *self.i0.get_unchecked(j);
+                // NB: using pointers here hopefully ensures that we get SIMD
+                // optimisation through LLVM
+                let coeffs = (*self.coeffs.get_unchecked(j)).as_ptr();
+                let yj = y_in.as_ptr().add(i0 * ystride);
+                let mj = mask_in.as_ptr().add(i0);
+
+                // record masked taps as well and accumulate
+                // renormalisation factor
+                let mut renorm: f64 = 0.0;
+                let mut value_acc: f64 = 0.0;
+
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    clippy::cast_sign_loss,
+                    reason = "mask values are only 0.0 or 1.0"
+                )]
+                for k in 0..N {
+                    let ck = *coeffs.add(k);
+                    let mk = *mj.add(k);
+                    let yk = (*yj.add(k * ystride)).as_();
+
+                    // accumulate data and variance
+                    let mck = mk * ck;
+                    value_acc = mck.mul_add(yk, value_acc);
+                    // accumulate updated coefficient norm
+                    renorm += mck;
+                }
+
+                // variance is normalized by the new coefficient sum squared, inverted,
+                // and multiplied with the sample masks
+                let valid = f64::from(*self.valid.get_unchecked(j));
+                // valid only if window center falls between two valid samples
+                let a_idx = *self.center_a.get_unchecked(j);
+                let mask =
+                    valid * *mask_in.get_unchecked(a_idx) * *mask_in.get_unchecked(a_idx + 1);
+                // Invert the norm, zeroing the sample if `renorm` is zero. The
+                // corresponding weight will also be zeroed
+                let inv_norm = invert_no_zero(renorm);
+
+                *y_out.uget_mut(j) = T::from_f64(mask * value_acc * inv_norm);
+            }
+        }
+    }
+
+    #[inline]
     fn interp_row_with_variance(
         &self,
         y_in: &ArrayView1<T>,
@@ -263,20 +329,20 @@ impl<T: FloatLike, const N: usize> Interpolator<T> for KernelPlan<N> {
                     renorm += mck;
                 }
 
-                // Invert the norm, zeroing the sample if `renorm` is zero. The
-                // corresponding weight will also be zeroed
-                let inv_norm = invert_no_zero(renorm);
-                *y_out.uget_mut(j) = T::from_f64(value_acc * inv_norm);
                 // variance is normalized by the new coefficient sum squared, inverted,
                 // and multiplied with the sample masks
                 let valid = f64::from(*self.valid.get_unchecked(j));
                 // valid only if window center falls between two valid samples
                 let a_idx = *self.center_a.get_unchecked(j);
-                let center_mask =
-                    *mask_scratch.get_unchecked(a_idx) * *mask_scratch.get_unchecked(a_idx + 1);
+                let mask = valid
+                    * *mask_scratch.get_unchecked(a_idx)
+                    * *mask_scratch.get_unchecked(a_idx + 1);
+                // Invert the norm, zeroing the sample if `renorm` is zero. The
+                // corresponding weight will also be zeroed
+                let inv_norm = invert_no_zero(renorm);
+                *y_out.uget_mut(j) = T::from_f64(mask * value_acc * inv_norm);
                 let inv_var = invert_no_zero(var_acc);
-                *weight_out.uget_mut(j) =
-                    T::from_f64(renorm * renorm * center_mask * valid * inv_var);
+                *weight_out.uget_mut(j) = T::from_f64(renorm * renorm * mask * inv_var);
             }
         }
     }
