@@ -1,5 +1,7 @@
 //! Implementation of [`InterpolationPlan`] for a kernel-based interpolator
-use super::plan::{InterpolationPlan, Interpolator, IntoInterpolator, median_abs_sample_spacing};
+use super::plan::{
+    InterpolationPlan, Interpolator, IntoInterpolator, invert_no_zero, median_abs_sample_spacing,
+};
 use crate::types::FloatLike;
 use ndarray::{ArrayView1, ArrayViewMut1, Axis};
 
@@ -10,7 +12,7 @@ pub struct KernelPlan<const N: usize> {
     // kernel coefficients
     coeffs: Vec<[f64; N]>,
     // mask for valid samples
-    valid: Vec<bool>,
+    valid: Vec<f64>,
     // track the bracket indices for the kernel center
     center_a: Vec<usize>,
 }
@@ -60,7 +62,7 @@ impl<const N: usize> KernelPlan<N> {
         let mut i0 = Vec::<usize>::with_capacity(n_out);
         let mut center_a = Vec::<usize>::with_capacity(n_out);
         let mut coeffs = Vec::with_capacity(n_out);
-        let mut valid = Vec::<bool>::with_capacity(n_out);
+        let mut valid = Vec::<f64>::with_capacity(n_out);
 
         // inputs are assumed to be sorted
         let mut lo: usize = 0;
@@ -131,7 +133,7 @@ impl<const N: usize> KernelPlan<N> {
             i0.push(base);
             center_a.push(lo);
             coeffs.push(c);
-            valid.push(!(distant || outside_window) && sum.is_finite());
+            valid.push(f64::from(!(distant || outside_window) && sum.is_finite()));
         }
 
         Ok(Self {
@@ -158,11 +160,6 @@ impl<const N: usize> IntoInterpolator for KernelPlan<N> {
 }
 
 impl<T: FloatLike, const N: usize> Interpolator<T> for KernelPlan<N> {
-    #[inline]
-    fn needs_mask_scratch(&self) -> bool {
-        true
-    }
-
     #[inline]
     fn interp_row(&self, y_in: &ArrayView1<T>, mut y_out: ArrayViewMut1<T>) {
         let n_out = self.len();
@@ -217,8 +214,7 @@ impl<T: FloatLike, const N: usize> Interpolator<T> for KernelPlan<N> {
             for j in 0..n_out {
                 // indices and coefficients
                 let i0 = *self.i0.get_unchecked(j);
-                // NB: using pointers here hopefully ensures that we get SIMD
-                // optimisation through LLVM
+
                 let coeffs = (*self.coeffs.get_unchecked(j)).as_ptr();
                 let yj = y_in.as_ptr().add(i0 * ystride);
                 let mj = mask_in.as_ptr().add(i0);
@@ -247,7 +243,7 @@ impl<T: FloatLike, const N: usize> Interpolator<T> for KernelPlan<N> {
 
                 // variance is normalized by the new coefficient sum squared, inverted,
                 // and multiplied with the sample masks
-                let valid = f64::from(*self.valid.get_unchecked(j));
+                let valid = *self.valid.get_unchecked(j);
                 // valid only if window center falls between two valid samples
                 let a_idx = *self.center_a.get_unchecked(j);
                 let mask =
@@ -291,14 +287,13 @@ impl<T: FloatLike, const N: usize> Interpolator<T> for KernelPlan<N> {
             for k in 0..n_in {
                 let w: f64 = (*weight_in.uget(k)).as_();
                 *var_scratch.get_unchecked_mut(k) = invert_no_zero(w);
-                *mask_scratch.get_unchecked_mut(k) = f64::from(w.is_finite() && w > 0.0);
+                *mask_scratch.get_unchecked_mut(k) = f64::from(w > 0.0 && w < f64::INFINITY);
             }
 
             for j in 0..n_out {
                 // indices and coefficients
                 let i0 = *self.i0.get_unchecked(j);
-                // NB: using pointers here hopefully ensures that we get SIMD
-                // optimisation through LLVM
+
                 let coeffs = (*self.coeffs.get_unchecked(j)).as_ptr();
                 let yj = y_in.as_ptr().add(i0 * ystride);
                 let vj = var_scratch.as_ptr().add(i0);
@@ -331,7 +326,7 @@ impl<T: FloatLike, const N: usize> Interpolator<T> for KernelPlan<N> {
 
                 // variance is normalized by the new coefficient sum squared, inverted,
                 // and multiplied with the sample masks
-                let valid = f64::from(*self.valid.get_unchecked(j));
+                let valid = *self.valid.get_unchecked(j);
                 // valid only if window center falls between two valid samples
                 let a_idx = *self.center_a.get_unchecked(j);
                 let mask = valid
@@ -473,20 +468,4 @@ fn compute_scaled_taps(
         (requested_taps as f64 * filter_scale).ceil() as usize,
         filter_scale,
     ))
-}
-
-/// invert a value, or return zero if the value is zero
-#[inline]
-fn invert_no_zero(x: f64) -> f64 {
-    if x == 0.0 { 0.0 } else { 1.0 / x }
-}
-
-#[inline]
-#[allow(dead_code, reason = "testing")]
-fn invert_no_zero_branchless(x: f64) -> f64 {
-    let inv = 1.0 / x;
-    // bitmask - all zeros if x is zero, all ones otherwise
-    let bitmask = u64::from(x != 0.0).wrapping_neg();
-
-    f64::from_bits(inv.to_bits() & bitmask)
 }
