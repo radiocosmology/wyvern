@@ -154,7 +154,8 @@ pub fn interp_last_ax_complex_weighted<T>(
         .for_each(|(yre_i, yim_i, wi, yre_o, yim_o, wo)| {
             pool.with(|vbuf, mbuf| {
                 interpolator.interp_row_with_variance(&yre_i, &wi, vbuf, mbuf, yre_o, wo);
-                interpolator.interp_row(&yim_i, yim_o);
+                // mask scratch buffer already contains the mask for this row
+                interpolator.interp_row_masked(&yim_i, mbuf, yim_o);
             });
         });
 }
