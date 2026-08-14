@@ -6,7 +6,7 @@ pub trait Kernel {
     fn evaluate(&self, x: f64) -> f64;
     /// Expected half-width
     fn half_width(&self) -> f64;
-    /// Set/update the half-width
+    /// Update the half-width.
     fn update_half_width(&mut self, a: f64);
 }
 

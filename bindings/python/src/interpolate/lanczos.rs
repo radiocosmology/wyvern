@@ -10,7 +10,7 @@ use pyo3::prelude::*;
 use pyo3_stub_gen::derive::gen_stub_pyfunction;
 
 use super::{dispatch_unweighted, dispatch_weighted, require_dtype, require_ndim};
-use wyvern::interpolate::DynamicKernelPlan;
+use wyvern::interpolate::DynamicKernelInterpolator;
 use wyvern::kernels::LanczosKernel;
 
 /// Interpolate a 2D array using a Lanczos kernel.
@@ -66,7 +66,7 @@ pub fn interpolate_lanczos<'py>(
         reason = "number of taps will never exceed usize -> f64 precision loss"
     )]
     let kernel = LanczosKernel { a: n_taps as f64 };
-    let plan = DynamicKernelPlan::build(x_in_sl, x_out_sl, n_taps, kernel)?;
+    let plan = DynamicKernelInterpolator::build(x_in_sl, x_out_sl, n_taps, kernel)?;
 
     dispatch_unweighted(py, &plan, y_in, y_out)
 }
@@ -133,7 +133,7 @@ pub fn interpolate_lanczos_weighted<'py>(
         reason = "number of taps will never exceed usize -> f64 precision loss"
     )]
     let kernel = LanczosKernel { a: n_taps as f64 };
-    let plan = DynamicKernelPlan::build(x_in_sl, x_out_sl, n_taps, kernel)?;
+    let plan = DynamicKernelInterpolator::build(x_in_sl, x_out_sl, n_taps, kernel)?;
 
     dispatch_weighted(py, &plan, y_in, w_in, y_out, w_out)
 }
