@@ -11,7 +11,7 @@ use pyo3_stub_gen::derive::gen_stub_pyfunction;
 
 use super::{dispatch_unweighted, dispatch_weighted, require_dtype, require_ndim};
 use wyvern::interpolate::DynamicKernelPlan;
-use wyvern::kernels::lanczos_kernel;
+use wyvern::kernels::LanczosKernel;
 
 /// Interpolate a 2D array using a Lanczos kernel.
 ///
@@ -61,7 +61,12 @@ pub fn interpolate_lanczos<'py>(
     let x_out: PyReadonlyArray1<f64> = x_out.extract()?;
     let x_out_sl = x_out.as_slice()?;
 
-    let plan = DynamicKernelPlan::build(x_in_sl, x_out_sl, n_taps, lanczos_kernel)?;
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "number of taps will never exceed usize -> f64 precision loss"
+    )]
+    let kernel = LanczosKernel { a: n_taps as f64 };
+    let plan = DynamicKernelPlan::build(x_in_sl, x_out_sl, n_taps, kernel)?;
 
     dispatch_unweighted(py, &plan, y_in, y_out)
 }
@@ -123,7 +128,12 @@ pub fn interpolate_lanczos_weighted<'py>(
     let x_out: PyReadonlyArray1<f64> = x_out.extract()?;
     let x_out_sl = x_out.as_slice()?;
 
-    let plan = DynamicKernelPlan::build(x_in_sl, x_out_sl, n_taps, lanczos_kernel)?;
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "number of taps will never exceed usize -> f64 precision loss"
+    )]
+    let kernel = LanczosKernel { a: n_taps as f64 };
+    let plan = DynamicKernelPlan::build(x_in_sl, x_out_sl, n_taps, kernel)?;
 
     dispatch_weighted(py, &plan, y_in, w_in, y_out, w_out)
 }

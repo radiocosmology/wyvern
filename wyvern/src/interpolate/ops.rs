@@ -3,7 +3,7 @@ use ndarray::{ArrayView2, ArrayViewMut2, Zip};
 use rayon::prelude::*;
 use std::cell::UnsafeCell;
 
-use super::plan::Interpolator;
+use super::interpolator::Interpolator;
 use crate::types::ParFloatLike;
 
 /// Collection of scratch buffers

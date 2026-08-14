@@ -1,7 +1,6 @@
 //! Linear implementation for a [`InterpolationPlan`].
-use super::plan::{
-    InterpolationPlan, Interpolator, IntoInterpolator, invert_no_zero, median_abs_sample_spacing,
-};
+use super::helpers::{invert_no_zero, median_abs_sample_spacing};
+use super::interpolator::{InterpolationPlan, Interpolator, IntoInterpolator};
 use crate::types::FloatLike;
 use ndarray::{ArrayView1, ArrayViewMut1};
 

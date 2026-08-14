@@ -1,7 +1,7 @@
 //! Implementation of [`InterpolationPlan`] for a kernel-based interpolator
-use super::plan::{
-    InterpolationPlan, Interpolator, IntoInterpolator, invert_no_zero, median_abs_sample_spacing,
-};
+use super::helpers::{invert_no_zero, median_abs_sample_spacing};
+use super::interpolator::{InterpolationPlan, Interpolator, IntoInterpolator};
+use crate::kernels::Kernel;
 use crate::types::FloatLike;
 use ndarray::{ArrayView1, ArrayViewMut1, Axis};
 
@@ -35,7 +35,7 @@ impl<const N: usize> KernelPlan<N> {
     pub fn build(
         x_in: &[f64],
         x_out: &[f64],
-        kernel: impl Fn(f64, f64) -> f64,
+        kernel: &impl Kernel,
         filter_scale: f64,
     ) -> eyre::Result<Self> {
         let n_in = x_in.len();
@@ -58,6 +58,18 @@ impl<const N: usize> KernelPlan<N> {
             let ah = N / 2;
             (ah as f64, ah.cast_signed())
         };
+
+        // require that the kernel matches the compiled half-width, rather
+        // than deriving from the kernel itself
+        // half-width should be an integer, so allow only a very
+        // small tolerance
+        // NB: this would probably be nice to change
+        if (kernel.half_width() - a_half).abs() >= 1.0e-10 {
+            eyre::bail!(
+                "kernel half-width `{:?}` is not equal to expected half-width `{a_half}`",
+                kernel.half_width()
+            );
+        }
 
         let mut i0 = Vec::<usize>::with_capacity(n_out);
         let mut center_a = Vec::<usize>::with_capacity(n_out);
@@ -114,7 +126,8 @@ impl<const N: usize> KernelPlan<N> {
             for k in 0..N {
                 let xi = x_in[base + k];
                 let dist = (xo - xi) * scaled_inv_span;
-                let w = kernel(dist, a_half);
+                // let w = kernel(dist, a_half);
+                let w = kernel.evaluate(dist);
                 c[k] = w;
                 sum += w;
             }
@@ -377,17 +390,23 @@ macro_rules! define_dynamic_kernel_plan {
                     x_in: &[f64],
                     x_out: &[f64],
                     n_taps: usize,
-                    kernel: impl Fn(f64, f64) -> f64,
+                    mut kernel: impl Kernel,
                 ) -> eyre::Result<Self> {
                     if n_taps < 2 {
                         eyre::bail!("require at least 2 taps!");
                     }
                     // compute the required filter scaling
                     let (required_taps, filter_scale) = compute_scaled_taps(x_in, x_out, n_taps)?;
+                    // rescale the kernel
+                    #[allow(
+                        clippy::cast_precision_loss,
+                        reason = "required_taps will not large enough for precision loss"
+                    )]
+                    kernel.update_half_width(required_taps as f64);
 
                     $(
                         if required_taps <= $n {
-                            return Ok(Self::[<W $n>](KernelPlan::<$n>::build(x_in, x_out, kernel, filter_scale)?));
+                            return Ok(Self::[<W $n>](KernelPlan::<$n>::build(x_in, x_out, &kernel, filter_scale)?));
                         }
                     )+
 

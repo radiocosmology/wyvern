@@ -1,13 +1,39 @@
 //! Implementation of some interpolation kernels
 
-/// Lanczos kernel
-#[inline]
-#[must_use]
-pub fn lanczos_kernel(x: f64, a: f64) -> f64 {
-    if x.abs() >= a {
-        0.0
-    } else {
-        sinc(x) * sinc(x / a)
+/// Implements a kernel
+pub trait Kernel {
+    /// Evaluate the kernel at a point
+    fn evaluate(&self, x: f64) -> f64;
+    /// Expected half-width
+    fn half_width(&self) -> f64;
+    /// Set/update the half-width
+    fn update_half_width(&mut self, a: f64);
+}
+
+#[derive(Debug)]
+pub struct LanczosKernel {
+    /// Width parameter
+    pub a: f64,
+}
+
+impl Kernel for LanczosKernel {
+    #[inline]
+    fn evaluate(&self, x: f64) -> f64 {
+        if x.abs() >= self.a {
+            0.0
+        } else {
+            sinc(x) * sinc(x / self.a)
+        }
+    }
+
+    #[inline]
+    fn half_width(&self) -> f64 {
+        self.a
+    }
+
+    #[inline]
+    fn update_half_width(&mut self, a: f64) {
+        self.a = a;
     }
 }
 
