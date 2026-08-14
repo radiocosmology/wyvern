@@ -5,7 +5,7 @@ use pyo3::prelude::*;
 use pyo3_stub_gen::derive::gen_stub_pyfunction;
 
 use super::{dispatch_unweighted, dispatch_weighted, require_dtype, require_ndim};
-use wyvern::interpolate::LinearPlan;
+use wyvern::interpolate::LinearInterpolator;
 
 /// Linearly interpolate a 2D array.
 ///
@@ -53,7 +53,7 @@ pub fn interpolate_linear<'py>(
     let x_out_sl = x_out.as_slice()?;
 
     // construct the interpolation plan
-    let plan = LinearPlan::build(x_in_sl, x_out_sl)?;
+    let plan = LinearInterpolator::build(x_in_sl, x_out_sl)?;
 
     dispatch_unweighted(py, &plan, y_in, y_out)
 }
@@ -113,7 +113,7 @@ pub fn interpolate_linear_weighted<'py>(
     let x_out_sl = x_out.as_slice()?;
 
     // construct the interpolation plan
-    let plan = LinearPlan::build(x_in_sl, x_out_sl)?;
+    let plan = LinearInterpolator::build(x_in_sl, x_out_sl)?;
 
     dispatch_weighted(py, &plan, y_in, w_in, y_out, w_out)
 }

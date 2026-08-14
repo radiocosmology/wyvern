@@ -6,7 +6,7 @@ use crate::types::FloatLike;
 use ndarray::{ArrayView1, ArrayViewMut1, Axis};
 
 /// Precomputed interpolation plan for a lanczos kernel
-pub struct KernelPlan<const N: usize> {
+pub struct KernelInterpolator<const N: usize> {
     // index of the first window tap
     i0: Vec<usize>,
     // kernel coefficients
@@ -17,7 +17,7 @@ pub struct KernelPlan<const N: usize> {
     center_a: Vec<usize>,
 }
 
-impl<const N: usize> KernelPlan<N> {
+impl<const N: usize> KernelInterpolator<N> {
     /// Build an interpolation plan for a kernel-based interpolator.
     ///
     /// # Parameters
@@ -27,7 +27,7 @@ impl<const N: usize> KernelPlan<N> {
     /// ``filter_scale``: kernel point separation scaling factor
     ///
     /// # Returns
-    /// [`KernelPlan`]
+    /// [`KernelInterpolator`]
     ///
     /// # Errors
     /// If input sample indices are unsorted or repeated, or too few
@@ -158,21 +158,21 @@ impl<const N: usize> KernelPlan<N> {
     }
 }
 
-impl<const N: usize> InterpolationPlan for KernelPlan<N> {
+impl<const N: usize> InterpolationPlan for KernelInterpolator<N> {
     #[inline]
     fn len(&self) -> usize {
         self.i0.len()
     }
 }
 
-impl<const N: usize> IntoInterpolator for KernelPlan<N> {
+impl<const N: usize> IntoInterpolator for KernelInterpolator<N> {
     #[inline]
     fn as_interpolator<T: FloatLike>(&self) -> &dyn Interpolator<T> {
         self
     }
 }
 
-impl<T: FloatLike, const N: usize> Interpolator<T> for KernelPlan<N> {
+impl<T: FloatLike, const N: usize> Interpolator<T> for KernelInterpolator<N> {
     #[inline]
     fn interp_row(&self, y_in: &ArrayView1<T>, mut y_out: ArrayViewMut1<T>) {
         let n_out = self.len();
@@ -356,18 +356,18 @@ impl<T: FloatLike, const N: usize> Interpolator<T> for KernelPlan<N> {
     }
 }
 
-/// Construct a [`DynamicKernelPlan`] enum for any number of supported
+/// Construct a [`DynamicKernelInterpolator`] enum for any number of supported
 /// tap widths
 macro_rules! define_dynamic_kernel_plan {
     ($($n:literal),+ $(,)?) => {
         paste::paste! {
-            pub enum DynamicKernelPlan {
+            pub enum DynamicKernelInterpolator {
                 $(
-                    [<W $n>](KernelPlan<$n>),
+                    [<W $n>](KernelInterpolator<$n>),
                 )+
             }
 
-            impl DynamicKernelPlan {
+            impl DynamicKernelInterpolator {
                 /// Build an interpolation plan for a kernel-based interpolator.
                 ///
                 /// Choose the smallest supported `N` that covers the required
@@ -381,7 +381,7 @@ macro_rules! define_dynamic_kernel_plan {
                 /// ``kernel``: kernel function
                 ///
                 /// # Returns
-                /// [`DynamicKernelPlan`]
+                /// [`DynamicKernelInterpolator`]
                 ///
                 /// # Errors
                 /// If input sample indices are unsorted or repeated, or too few
@@ -406,7 +406,7 @@ macro_rules! define_dynamic_kernel_plan {
 
                     $(
                         if required_taps <= $n {
-                            return Ok(Self::[<W $n>](KernelPlan::<$n>::build(x_in, x_out, &kernel, filter_scale)?));
+                            return Ok(Self::[<W $n>](KernelInterpolator::<$n>::build(x_in, x_out, &kernel, filter_scale)?));
                         }
                     )+
 
@@ -420,7 +420,7 @@ macro_rules! define_dynamic_kernel_plan {
                 }
             }
 
-            impl InterpolationPlan for DynamicKernelPlan {
+            impl InterpolationPlan for DynamicKernelInterpolator {
                 #[inline]
                 fn len(&self) -> usize {
                     match self {
@@ -429,12 +429,12 @@ macro_rules! define_dynamic_kernel_plan {
                 }
             }
 
-            impl IntoInterpolator for DynamicKernelPlan {
+            impl IntoInterpolator for DynamicKernelInterpolator {
                 /// Returns a `%dyn Interpolator<T>` for callers to extract the
                 /// underlying typed interpolator
                 fn as_interpolator<T: FloatLike>(&self) -> &dyn Interpolator<T>
                 where
-                    $( KernelPlan<$n>: Interpolator<T>, )+
+                    $( KernelInterpolator<$n>: Interpolator<T>, )+
                 {
                     match self {
                         $( Self::[<W $n>](p) => p, )+

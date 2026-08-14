@@ -7,8 +7,8 @@ mod ops;
 
 // re-export
 pub use interpolator::{InterpolationPlan, Interpolator, IntoInterpolator};
-pub use kernel_plan::{DynamicKernelPlan, KernelPlan};
-pub use linear_plan::LinearPlan;
+pub use kernel_plan::{DynamicKernelInterpolator, KernelInterpolator};
+pub use linear_plan::LinearInterpolator;
 pub use ops::{
     interp_last_ax_complex, interp_last_ax_complex_weighted, interp_last_ax_real,
     interp_last_ax_real_weighted,

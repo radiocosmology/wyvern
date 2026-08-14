@@ -6,7 +6,7 @@ use ndarray::{ArrayView1, ArrayViewMut1};
 
 /// Precomputed interpolation plan for mapping input
 /// and output samples.
-pub struct LinearPlan {
+pub struct LinearInterpolator {
     // lower bracket index for input
     i0: Vec<usize>,
     // interpolation coefficient for i1 sample (w0 = 1 - w1)
@@ -15,7 +15,7 @@ pub struct LinearPlan {
     valid: Vec<f64>,
 }
 
-impl LinearPlan {
+impl LinearInterpolator {
     /// Build an interpolation plan for a linear interpolator.
     ///
     /// # Parameters
@@ -23,7 +23,7 @@ impl LinearPlan {
     /// ``x_out``: sorted, uniform spacing, len >= 1
     ///
     /// # Returns
-    /// [`LinearPlan`]
+    /// [`LinearInterpolator`]
     ///
     /// # Errors
     /// If input sample indices are unsorted or repeated
@@ -86,21 +86,21 @@ impl LinearPlan {
     }
 }
 
-impl InterpolationPlan for LinearPlan {
+impl InterpolationPlan for LinearInterpolator {
     #[inline]
     fn len(&self) -> usize {
         self.i0.len()
     }
 }
 
-impl IntoInterpolator for LinearPlan {
+impl IntoInterpolator for LinearInterpolator {
     #[inline]
     fn as_interpolator<T: FloatLike>(&self) -> &dyn Interpolator<T> {
         self
     }
 }
 
-impl<T: FloatLike> Interpolator<T> for LinearPlan {
+impl<T: FloatLike> Interpolator<T> for LinearInterpolator {
     #[inline]
     fn interp_row(&self, y_in: &ArrayView1<T>, mut y_out: ArrayViewMut1<T>) {
         let n_out = self.len();
