@@ -11,8 +11,7 @@ use pyo3::prelude::*;
 
 use super::{ensure_array, require_ndim, split_complex_view, split_complex_view_mut};
 use wyvern::interpolate::{
-    InterpolationPlan, Interpolator, IntoInterpolator, interp_last_ax_complex,
-    interp_last_ax_complex_weighted, interp_last_ax_real, interp_last_ax_real_weighted,
+    InterpolationPlan, Interpolator, IntoInterpolator, ParallelInterpolator,
 };
 use wyvern::types::ParFloatLike;
 
@@ -29,7 +28,9 @@ macro_rules! try_dispatch_unweighted {
                 let y_in: PyReadonlyArray2<$pytype> = $y_in.extract()?;
                 let y_out = ensure_array::<$pytype>($py, $y_out, $out_shape)?;
                 let interpolator: &dyn Interpolator<$floatty> = $plan.as_interpolator();
-                return Ok($func::<$floatty>($py, interpolator, &y_in, y_out));
+                let interpolator = ParallelInterpolator::<$floatty>::with_interpolator(interpolator);
+
+                return Ok($func::<$floatty>($py, &interpolator, &y_in, y_out));
             }
         )+
     };
@@ -48,13 +49,14 @@ macro_rules! try_dispatch_weighted {
                 let w_in: PyReadonlyArray2<$floatty> = $w_in.extract()?;
                 let w_out = ensure_array::<$floatty>($py, $w_out, $out_shape)?;
                 let interpolator: &dyn Interpolator<$floatty> = $plan.as_interpolator();
+                let interpolator = ParallelInterpolator::<$floatty>::with_interpolator(interpolator);
 
                 $(
                     if $y_dtype.is_equiv_to(&dtype::<$pytype>($py)) {
                         let y_in: PyReadonlyArray2<$pytype> = $y_in.extract()?;
                         let y_out = ensure_array::<$pytype>($py, $y_out, $out_shape)?;
                         return Ok($func::<$floatty>(
-                            $py, interpolator, &y_in, &w_in, y_out, w_out,
+                            $py, &interpolator, &y_in, &w_in, y_out, w_out,
                         ));
                     }
                 )+
@@ -141,7 +143,7 @@ pub fn dispatch_weighted<'py, P: IntoInterpolator + InterpolationPlan>(
 
 fn real_unweighted<'py, T>(
     py: Python<'py>,
-    interpolator: &dyn Interpolator<T>,
+    interpolator: &ParallelInterpolator<T>,
     y_in: &PyReadonlyArray2<'py, T>,
     mut y_out: PyReadwriteArray2<'py, T>,
 ) -> Py<PyUntypedArray>
@@ -152,14 +154,14 @@ where
     let y_in_view = y_in.as_array();
     let y_out_view = y_out.as_array_mut();
 
-    py.detach(|| interp_last_ax_real(interpolator, &y_in_view, y_out_view));
+    py.detach(|| interpolator.interpolate_real(&y_in_view, y_out_view));
 
     y_out.as_untyped().clone().unbind()
 }
 
 fn real_weighted<'py, T>(
     py: Python<'py>,
-    interpolator: &dyn Interpolator<T>,
+    interpolator: &ParallelInterpolator<T>,
     y_in: &PyReadonlyArray2<'py, T>,
     w_in: &PyReadonlyArray2<'py, T>,
     mut y_out: PyReadwriteArray2<'py, T>,
@@ -176,7 +178,7 @@ where
     let y_out_view = y_out.as_array_mut();
 
     py.detach(|| {
-        interp_last_ax_real_weighted(interpolator, &y_in_view, &w_in_view, y_out_view, w_out_view);
+        interpolator.interpolate_real_weighted(&y_in_view, &w_in_view, y_out_view, w_out_view);
     });
 
     (
@@ -187,7 +189,7 @@ where
 
 fn complex_unweighted<'py, T>(
     py: Python<'py>,
-    interpolator: &dyn Interpolator<T>,
+    interpolator: &ParallelInterpolator<T>,
     y_in: &PyReadonlyArray2<'py, Complex<T>>,
     mut y_out: PyReadwriteArray2<'py, Complex<T>>,
 ) -> Py<PyUntypedArray>
@@ -199,14 +201,14 @@ where
     let (yre_in, yim_in) = unsafe { split_complex_view(&y_in.as_array()) };
     let (yre_out, yim_out) = unsafe { split_complex_view_mut(&y_out.as_array_mut()) };
 
-    py.detach(|| interp_last_ax_complex(interpolator, &yre_in, &yim_in, yre_out, yim_out));
+    py.detach(|| interpolator.interpolate_complex(&yre_in, &yim_in, yre_out, yim_out));
 
     y_out.as_untyped().clone().unbind()
 }
 
 fn complex_weighted<'py, T>(
     py: Python<'py>,
-    interpolator: &dyn Interpolator<T>,
+    interpolator: &ParallelInterpolator<T>,
     y_in: &PyReadonlyArray2<'py, Complex<T>>,
     w_in: &PyReadonlyArray2<'py, T>,
     mut y_out: PyReadwriteArray2<'py, Complex<T>>,
@@ -223,14 +225,8 @@ where
     let (yre_out, yim_out) = unsafe { split_complex_view_mut(&y_out.as_array_mut()) };
 
     py.detach(|| {
-        interp_last_ax_complex_weighted(
-            interpolator,
-            &yre_in,
-            &yim_in,
-            &w_in_view,
-            yre_out,
-            yim_out,
-            w_out_view,
+        interpolator.interpolate_complex_weighted(
+            &yre_in, &yim_in, &w_in_view, yre_out, yim_out, w_out_view,
         );
     });
 
