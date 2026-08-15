@@ -65,7 +65,9 @@ pub fn interpolate_lanczos<'py>(
         clippy::cast_precision_loss,
         reason = "number of taps will never exceed usize -> f64 precision loss"
     )]
-    let kernel = LanczosKernel { a: n_taps as f64 };
+    let kernel = LanczosKernel {
+        a: (n_taps as f64 / 2.0).floor(),
+    };
     let plan = DynamicKernelInterpolator::build(x_in_sl, x_out_sl, n_taps, kernel)?;
 
     dispatch_unweighted(py, &plan, y_in, y_out)
@@ -132,7 +134,9 @@ pub fn interpolate_lanczos_weighted<'py>(
         clippy::cast_precision_loss,
         reason = "number of taps will never exceed usize -> f64 precision loss"
     )]
-    let kernel = LanczosKernel { a: n_taps as f64 };
+    let kernel = LanczosKernel {
+        a: (n_taps as f64 / 2.0).floor(),
+    };
     let plan = DynamicKernelInterpolator::build(x_in_sl, x_out_sl, n_taps, kernel)?;
 
     dispatch_weighted(py, &plan, y_in, w_in, y_out, w_out)

@@ -402,7 +402,7 @@ macro_rules! define_dynamic_kernel_plan {
                         clippy::cast_precision_loss,
                         reason = "required_taps will not large enough for precision loss"
                     )]
-                    kernel.update_half_width(required_taps as f64);
+                    kernel.update_half_width((required_taps as f64 / 2.0).floor());
 
                     $(
                         if required_taps <= $n {
