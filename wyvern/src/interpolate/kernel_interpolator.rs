@@ -15,6 +15,8 @@ pub struct KernelInterpolator<const N: usize> {
     valid: Vec<f64>,
     // track the bracket indices for the kernel center
     center_a: Vec<usize>,
+    // number of input samples
+    n_in: usize,
 }
 
 impl<const N: usize> KernelInterpolator<N> {
@@ -154,6 +156,7 @@ impl<const N: usize> KernelInterpolator<N> {
             coeffs,
             valid,
             center_a,
+            n_in,
         })
     }
 }
@@ -162,6 +165,11 @@ impl<const N: usize> InterpolationPlan for KernelInterpolator<N> {
     #[inline]
     fn len(&self) -> usize {
         self.i0.len()
+    }
+
+    #[inline]
+    fn n_in(&self) -> usize {
+        self.n_in
     }
 }
 
@@ -175,34 +183,29 @@ impl<const N: usize> IntoInterpolator for KernelInterpolator<N> {
 impl<T: FloatLike, const N: usize> Interpolator<T> for KernelInterpolator<N> {
     #[inline]
     fn interp_row(&self, y_in: &ArrayView1<T>, mut y_out: ArrayViewMut1<T>) {
-        let n_out = self.len();
-        debug_assert_eq!(n_out, y_out.len());
+        assert_eq!(self.len(), y_out.len());
+        assert_eq!(self.n_in(), y_in.len());
 
         // `y_in` might have stride 2 if this is a view into a complex array
         let ystride = y_in.stride_of(Axis(0));
-        debug_assert!(ystride > 0, "y must have positive strides");
+        assert!(ystride > 0, "y must have positive strides");
         let ystride = ystride.cast_unsigned();
 
-        unsafe {
-            for j in 0..n_out {
-                // indices and coefficients
-                let i0 = *self.i0.get_unchecked(j);
-                let coeffs = (*self.coeffs.get_unchecked(j)).as_ptr();
-                let yj = y_in.as_ptr().add(i0 * ystride);
+        self.i0
+            .iter()
+            .zip(self.coeffs.iter())
+            .zip(y_out.iter_mut())
+            .for_each(|((i0, c0), yo)| {
+                let yj = unsafe { y_in.as_ptr().add(i0 * ystride) };
 
-                // interpolate
                 let mut value_acc: f64 = 0.0;
-
-                for k in 0..N {
-                    let ck = *coeffs.add(k);
-                    let yk = (*yj.add(k * ystride)).as_();
-
+                c0.iter().enumerate().for_each(|(k, ck)| {
+                    let yk = unsafe { (*yj.add(k * ystride)).as_() };
                     value_acc = ck.mul_add(yk, value_acc);
-                }
+                });
 
-                *y_out.uget_mut(j) = T::from_f64(value_acc);
-            }
-        }
+                *yo = T::from_f64(value_acc);
+            });
     }
 
     #[inline]
@@ -212,40 +215,39 @@ impl<T: FloatLike, const N: usize> Interpolator<T> for KernelInterpolator<N> {
         mask_in: &mut [f64],
         mut y_out: ArrayViewMut1<T>,
     ) {
-        let n_in = y_in.len();
-        let n_out = self.len();
+        assert_eq!(self.n_in(), y_in.len());
+        assert_eq!(self.n_in(), mask_in.len());
+        assert_eq!(self.len(), y_out.len());
 
         // `y_in` might have stride 2 if this is a view into a complex array
         let ystride = y_in.stride_of(Axis(0));
         debug_assert!(ystride > 0, "y must have positive strides");
         let ystride = ystride.cast_unsigned();
 
-        debug_assert_eq!(n_in, mask_in.len());
-        debug_assert_eq!(n_out, y_out.len());
+        let yptr = y_in.as_ptr();
+        let mptr = mask_in.as_ptr();
 
-        unsafe {
-            for j in 0..n_out {
-                // indices and coefficients
-                let i0 = *self.i0.get_unchecked(j);
+        #[allow(
+            clippy::unwrap_used,
+            reason = "indices are valid based on plan construction"
+        )]
+        self.i0
+            .iter()
+            .zip(self.coeffs.iter())
+            .zip(self.valid.iter())
+            .zip(self.center_a.iter())
+            .zip(y_out.iter_mut())
+            .for_each(|((((i0, c0), valid), a_idx), yo)| {
+                let yj = unsafe { yptr.add(*i0 * ystride) };
+                let mj = unsafe { mptr.add(*i0) };
+                let cjptr = c0.as_ptr();
 
-                let coeffs = (*self.coeffs.get_unchecked(j)).as_ptr();
-                let yj = y_in.as_ptr().add(i0 * ystride);
-                let mj = mask_in.as_ptr().add(i0);
-
-                // record masked taps as well and accumulate
-                // renormalisation factor
                 let mut renorm: f64 = 0.0;
                 let mut value_acc: f64 = 0.0;
-
-                #[allow(
-                    clippy::cast_possible_truncation,
-                    clippy::cast_sign_loss,
-                    reason = "mask values are only 0.0 or 1.0"
-                )]
                 for k in 0..N {
-                    let ck = *coeffs.add(k);
-                    let mk = *mj.add(k);
-                    let yk = (*yj.add(k * ystride)).as_();
+                    let ck = unsafe { *cjptr.add(k) };
+                    let yk = unsafe { *yj.add(k * ystride) }.as_();
+                    let mk = unsafe { *mj.add(k) };
 
                     // accumulate data and variance
                     let mck = mk * ck;
@@ -254,20 +256,16 @@ impl<T: FloatLike, const N: usize> Interpolator<T> for KernelInterpolator<N> {
                     renorm += mck;
                 }
 
-                // variance is normalized by the new coefficient sum squared, inverted,
-                // and multiplied with the sample masks
-                let valid = *self.valid.get_unchecked(j);
-                // valid only if window center falls between two valid samples
-                let a_idx = *self.center_a.get_unchecked(j);
-                let mask =
-                    valid * *mask_in.get_unchecked(a_idx) * *mask_in.get_unchecked(a_idx + 1);
-                // Invert the norm, zeroing the sample if `renorm` is zero. The
-                // corresponding weight will also be zeroed
+                // A sample is valud only if the window centre falls
+                // between two vald samples
+                let mask = unsafe {
+                    let ma = mptr.add(*a_idx);
+                    *ma * *ma.add(1)
+                } * *valid;
+                // invert the norm, zeroing the sample if `renorm` is zero
                 let inv_norm = invert_no_zero(renorm);
-
-                *y_out.uget_mut(j) = T::from_f64(mask * value_acc * inv_norm);
-            }
-        }
+                *yo = T::from_f64(mask * value_acc * inv_norm);
+            });
     }
 
     #[inline]
@@ -280,54 +278,59 @@ impl<T: FloatLike, const N: usize> Interpolator<T> for KernelInterpolator<N> {
         mut y_out: ArrayViewMut1<T>,
         mut weight_out: ArrayViewMut1<T>,
     ) {
-        let n_in = y_in.len();
-        let n_out = self.len();
+        assert_eq!(self.n_in(), y_in.len());
+        assert_eq!(self.n_in(), weight_in.len());
+        assert_eq!(self.n_in(), var_scratch.len());
+        assert_eq!(self.n_in(), mask_scratch.len());
+        assert_eq!(self.len(), y_out.len());
+        assert_eq!(self.len(), weight_out.len());
 
         // `y_in` might have stride 2 if this is a view into a complex array
         let ystride = y_in.stride_of(Axis(0));
         debug_assert!(ystride > 0, "y must have positive strides");
         let ystride = ystride.cast_unsigned();
 
-        debug_assert_eq!(n_in, weight_in.len());
-        debug_assert_eq!(n_in, var_scratch.len());
-        debug_assert_eq!(n_out, y_out.len());
-        debug_assert_eq!(n_out, weight_out.len());
+        // invert weights once per pass, since input samples
+        // are often reused
+        weight_in
+            .iter()
+            .zip(var_scratch.iter_mut())
+            .zip(mask_scratch.iter_mut())
+            .for_each(|((w, vs), ms)| {
+                let w: f64 = w.as_();
+                *vs = invert_no_zero(w);
+                *ms = f64::from(w > 0.0 && w < f64::INFINITY);
+            });
 
-        unsafe {
-            // invert weights once per pass, since input samples are often re-used
-            // 1.0 / 0.0 == +inf under IEEE754, no panic, will revert to 0.0
-            // when re-inverted to weights
-            for k in 0..n_in {
-                let w: f64 = (*weight_in.uget(k)).as_();
-                *var_scratch.get_unchecked_mut(k) = invert_no_zero(w);
-                *mask_scratch.get_unchecked_mut(k) = f64::from(w > 0.0 && w < f64::INFINITY);
-            }
+        let yptr = y_in.as_ptr();
+        let vptr = var_scratch.as_ptr();
+        let mptr = mask_scratch.as_ptr();
 
-            for j in 0..n_out {
-                // indices and coefficients
-                let i0 = *self.i0.get_unchecked(j);
+        #[allow(
+            clippy::unwrap_used,
+            reason = "indices are valid based on plan construction"
+        )]
+        self.i0
+            .iter()
+            .zip(self.coeffs.iter())
+            .zip(self.valid.iter())
+            .zip(self.center_a.iter())
+            .zip(y_out.iter_mut())
+            .zip(weight_out.iter_mut())
+            .for_each(|(((((i0, c0), valid), a_idx), yo), wo)| {
+                let yj = unsafe { yptr.add(*i0 * ystride) };
+                let vj = unsafe { vptr.add(*i0) };
+                let mj = unsafe { mptr.add(*i0) };
+                let cjptr = c0.as_ptr();
 
-                let coeffs = (*self.coeffs.get_unchecked(j)).as_ptr();
-                let yj = y_in.as_ptr().add(i0 * ystride);
-                let vj = var_scratch.as_ptr().add(i0);
-                let mj = mask_scratch.as_ptr().add(i0);
-
-                // record masked taps as well and accumulate
-                // renormalisation factor
                 let mut renorm: f64 = 0.0;
                 let mut value_acc: f64 = 0.0;
                 let mut var_acc: f64 = 0.0;
-
-                #[allow(
-                    clippy::cast_possible_truncation,
-                    clippy::cast_sign_loss,
-                    reason = "mask values are only 0.0 or 1.0"
-                )]
                 for k in 0..N {
-                    let ck = *coeffs.add(k);
-                    let vk = *vj.add(k);
-                    let mk = *mj.add(k);
-                    let yk = (*yj.add(k * ystride)).as_();
+                    let ck = unsafe { *cjptr.add(k) };
+                    let yk = unsafe { *yj.add(k * ystride) }.as_();
+                    let vk = unsafe { *vj.add(k) };
+                    let mk = unsafe { *mj.add(k) };
 
                     // accumulate data and variance
                     let mck = mk * ck;
@@ -339,20 +342,18 @@ impl<T: FloatLike, const N: usize> Interpolator<T> for KernelInterpolator<N> {
 
                 // variance is normalized by the new coefficient sum squared, inverted,
                 // and multiplied with the sample masks
-                let valid = *self.valid.get_unchecked(j);
                 // valid only if window center falls between two valid samples
-                let a_idx = *self.center_a.get_unchecked(j);
-                let mask = valid
-                    * *mask_scratch.get_unchecked(a_idx)
-                    * *mask_scratch.get_unchecked(a_idx + 1);
-                // Invert the norm, zeroing the sample if `renorm` is zero. The
-                // corresponding weight will also be zeroed
+                let mask = unsafe {
+                    let ma = mptr.add(*a_idx);
+                    *ma * *ma.add(1)
+                } * *valid;
+                // invert the norm, zeroing the sample in `renorm` is zero. The corresponding
+                // weight will also be zeroed
                 let inv_norm = invert_no_zero(renorm);
-                *y_out.uget_mut(j) = T::from_f64(mask * value_acc * inv_norm);
+                *yo = T::from_f64(mask * value_acc * inv_norm);
                 let inv_var = invert_no_zero(var_acc);
-                *weight_out.uget_mut(j) = T::from_f64(renorm * renorm * mask * inv_var);
-            }
-        }
+                *wo = T::from_f64(renorm * renorm * mask * inv_var);
+            });
     }
 }
 
@@ -425,6 +426,13 @@ macro_rules! define_dynamic_kernel_plan {
                 fn len(&self) -> usize {
                     match self {
                         $( Self::[<W $n>](p) => p.len(), )+
+                    }
+                }
+
+                #[inline]
+                fn n_in(&self) -> usize {
+                    match self {
+                        $( Self::[<W $n>](p) => p.n_in(), )+
                     }
                 }
             }
