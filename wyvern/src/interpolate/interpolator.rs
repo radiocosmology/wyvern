@@ -10,6 +10,8 @@ use rayon::prelude::*;
 pub trait InterpolationPlan {
     /// Number of output samples
     fn len(&self) -> usize;
+    /// Number of input samples
+    fn n_in(&self) -> usize;
     /// `true` if `len` is zero
     fn is_empty(&self) -> bool {
         self.len() == 0
@@ -23,7 +25,7 @@ pub trait IntoInterpolator {
 }
 
 /// Implements interpolation methods for float-like values
-pub trait Interpolator<T: FloatLike>: Send + Sync {
+pub trait Interpolator<T: FloatLike>: Send + Sync + InterpolationPlan {
     /// Interpolate a single row's data onto output points
     fn interp_row(&self, y_in: &ArrayView1<T>, y_out: ArrayViewMut1<T>);
 
@@ -65,8 +67,14 @@ where
     }
 
     /// Interpolate over the last axis of a real array.
+    ///
+    /// # Panics
+    /// Panics if the number of columns in `y_in` does not match the expected
+    /// interpolator length.
     #[inline]
     pub fn interpolate_real(&self, y_in: &ArrayView2<T>, mut y_out: ArrayViewMut2<T>) {
+        assert_eq!(y_out.ncols(), self.interpolator.len());
+        assert_eq!(y_in.ncols(), self.interpolator.n_in());
         // iterate over the 0th axis and interpolate the 1st
         // (contiguous) axis
         Zip::from(y_in.rows())
@@ -79,6 +87,10 @@ where
 
     /// Interpolate over the last axis of a complex array
     /// with accompanying weights
+    ///
+    /// # Panics
+    /// Panics if the number of columns in `y_re_in` or `y_re_in` do
+    /// not match the expected interpolator length.
     #[allow(clippy::too_many_arguments, reason = "inline helper function")]
     #[inline]
     pub fn interpolate_complex(
@@ -88,6 +100,13 @@ where
         mut y_re_out: ArrayViewMut2<T>,
         mut y_im_out: ArrayViewMut2<T>,
     ) {
+        #[allow(clippy::indexing_slicing, reason = "inputs are explicitly 2D")]
+        {
+            assert_eq!(y_re_in.shape()[1], self.interpolator.n_in());
+            assert_eq!(y_im_in.shape()[1], self.interpolator.n_in());
+            assert_eq!(y_re_out.shape()[1], self.interpolator.len());
+            assert_eq!(y_im_out.shape()[1], self.interpolator.len());
+        }
         // iterate over the 0th axis and interpolate the 1st
         // (contiguous) axis
         Zip::from(y_re_in.rows())
@@ -103,6 +122,10 @@ where
 
     /// Interpolate over the last axis of a real array
     /// with accompanying weights.
+    ///
+    /// # Panics
+    /// Panics if the number of columns in `y_in` or `weight_in` do
+    /// not match the expected interpolator length.
     #[inline]
     pub fn interpolate_real_weighted(
         &self,
@@ -114,6 +137,11 @@ where
         // update the scratch buffer size
         let n_in = y_in.ncols();
         let scratch = (vec![0.0; n_in], vec![0.0; n_in]);
+
+        assert_eq!(n_in, self.interpolator.n_in());
+        assert_eq!(weight_in.ncols(), self.interpolator.n_in());
+        assert_eq!(y_out.ncols(), self.interpolator.len());
+        assert_eq!(weight_out.ncols(), self.interpolator.len());
 
         // iterate over the 0th axis and interpolate the 1st
         // (contiguous) axis
@@ -129,7 +157,11 @@ where
     }
 
     /// Interpolate over the last axis of a complex array
-    /// with accompanying weights
+    /// with accompanying weights.
+    ///
+    /// # Panics
+    /// Panics if the number of columns in `y_re_in`, `y_im_in`, or
+    /// `weight_in` do not match the expected interpolator length.
     #[allow(clippy::too_many_arguments, reason = "inline helper function")]
     #[inline]
     pub fn interpolate_complex_weighted(
@@ -143,6 +175,16 @@ where
     ) {
         let n_in = weight_in.ncols();
         let scratch = (vec![0.0; n_in], vec![0.0; n_in]);
+
+        #[allow(clippy::indexing_slicing, reason = "inputs are explicitly 2D")]
+        {
+            assert_eq!(y_re_in.shape()[1], self.interpolator.n_in());
+            assert_eq!(y_im_in.shape()[1], self.interpolator.n_in());
+            assert_eq!(weight_in.shape()[1], self.interpolator.n_in());
+            assert_eq!(y_re_out.shape()[1], self.interpolator.len());
+            assert_eq!(y_im_out.shape()[1], self.interpolator.len());
+            assert_eq!(weight_out.shape()[1], self.interpolator.len());
+        }
 
         // iterate over the 0th axis and interpolate the 1st
         // (contiguous) axis

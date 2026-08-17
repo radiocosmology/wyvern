@@ -13,6 +13,8 @@ pub struct LinearInterpolator {
     c1: Vec<f64>,
     // mask for valid samples. 1.0 if valid, 0.0 otherwise
     valid: Vec<f64>,
+    // number of input samples
+    n_in: usize,
 }
 
 impl LinearInterpolator {
@@ -82,7 +84,12 @@ impl LinearInterpolator {
             c1.push((xo - a) / span);
         }
 
-        Ok(Self { i0, c1, valid })
+        Ok(Self {
+            i0,
+            c1,
+            valid,
+            n_in,
+        })
     }
 }
 
@@ -90,6 +97,11 @@ impl InterpolationPlan for LinearInterpolator {
     #[inline]
     fn len(&self) -> usize {
         self.i0.len()
+    }
+
+    #[inline]
+    fn n_in(&self) -> usize {
+        self.n_in
     }
 }
 
@@ -103,24 +115,30 @@ impl IntoInterpolator for LinearInterpolator {
 impl<T: FloatLike> Interpolator<T> for LinearInterpolator {
     #[inline]
     fn interp_row(&self, y_in: &ArrayView1<T>, mut y_out: ArrayViewMut1<T>) {
-        let n_out = self.len();
+        // NB: keeping these as release asserts shows a modest performance
+        // improvement - likely stripping some bounds checks from the zip
+        // (although, the latter two checks should already be known)
+        assert_eq!(self.len(), y_out.len());
+        assert_eq!(self.n_in(), y_in.len());
+        // assert_eq!(n_out, self.i0.len());
+        // assert_eq!(n_out, self.c1.len());
+        // check that _all_ indices are valid
+        debug_assert!(self.i0.iter().all(|&i0| i0 < y_in.len() - 1));
 
-        debug_assert_eq!(n_out, y_out.len());
+        #[allow(
+            clippy::unwrap_used,
+            reason = "indices are valid based on plan construction"
+        )]
+        self.i0
+            .iter()
+            .zip(self.c1.iter())
+            .zip(y_out.iter_mut())
+            .for_each(|((i0, s1), yo)| {
+                let a = (*y_in.get(*i0).unwrap()).as_();
+                let b = (*y_in.get(*i0 + 1).unwrap()).as_();
 
-        unsafe {
-            for j in 0..n_out {
-                // extract the interpolation indices and weight
-                let i0 = *self.i0.get_unchecked(j);
-                let i1 = i0 + 1;
-                // interpolation coefficients
-                let s1 = *self.c1.get_unchecked(j);
-
-                // interpolate data onto the target sample
-                let a = (*y_in.uget(i0)).as_();
-                let b = (*y_in.uget(i1)).as_();
-                *y_out.uget_mut(j) = T::from_f64((b - a).mul_add(s1, a));
-            }
-        }
+                *yo = T::from_f64((b - a).mul_add(*s1, a));
+            });
     }
 
     #[inline]
@@ -130,34 +148,29 @@ impl<T: FloatLike> Interpolator<T> for LinearInterpolator {
         mask_in: &mut [f64],
         mut y_out: ArrayViewMut1<T>,
     ) {
-        let n_in = y_in.len();
-        let n_out = self.len();
+        assert_eq!(self.n_in(), y_in.len());
+        assert_eq!(self.n_in(), mask_in.len());
+        assert_eq!(self.len(), y_out.len());
 
-        debug_assert_eq!(n_in, mask_in.len());
-        debug_assert_eq!(n_out, y_out.len());
+        #[allow(
+            clippy::unwrap_used,
+            reason = "indices are valid based on plan construction"
+        )]
+        self.i0
+            .iter()
+            .zip(self.c1.iter())
+            .zip(self.valid.iter())
+            .zip(y_out.iter_mut())
+            .for_each(|(((i0, s1), valid), yo)| {
+                let valid = valid * mask_in.get(*i0).unwrap();
+                let a = (*y_in.get(*i0).unwrap()).as_();
+                let b = (*y_in.get(*i0 + 1).unwrap()).as_();
 
-        unsafe {
-            for j in 0..n_out {
-                // extract the interpolation indices and weight
-                let i0 = *self.i0.get_unchecked(j);
-                let i1 = i0 + 1;
-                // interpolation coefficients
-                let s1 = *self.c1.get_unchecked(j);
-
-                // check if sample is valid from the plan or masked
-                // from the input mask
-                let valid = *self.valid.get_unchecked(j) * *mask_in.get_unchecked(i0);
-
-                // interpolate data onto the target sample
-                let a = (*y_in.uget(i0)).as_();
-                let b = (*y_in.uget(i1)).as_();
-                *y_out.uget_mut(j) = T::from_f64(valid * (b - a).mul_add(s1, a));
-            }
-        }
+                *yo = T::from_f64(valid * (b - a).mul_add(*s1, a));
+            });
     }
 
     #[inline]
-    #[allow(clippy::indexing_slicing, clippy::unwrap_used, reason = "guaranteed")]
     fn interp_row_with_variance(
         &self,
         y_in: &ArrayView1<T>,
@@ -167,51 +180,55 @@ impl<T: FloatLike> Interpolator<T> for LinearInterpolator {
         mut y_out: ArrayViewMut1<T>,
         mut weight_out: ArrayViewMut1<T>,
     ) {
-        let n_in = y_in.len();
-        let n_out = self.len();
+        assert_eq!(self.n_in(), y_in.len());
+        assert_eq!(self.n_in(), weight_in.len());
+        assert_eq!(self.n_in(), var_scratch.len());
+        assert_eq!(self.n_in(), mask_scratch.len());
+        assert_eq!(self.len(), y_out.len());
+        assert_eq!(self.len(), weight_out.len());
 
-        debug_assert_eq!(n_in, weight_in.len());
-        debug_assert_eq!(n_in, var_scratch.len());
-        debug_assert_eq!(n_out, y_out.len());
-        debug_assert_eq!(n_out, weight_out.len());
+        // invert weights once per pass, since input samples
+        // are often reused
+        weight_in
+            .iter()
+            .zip(var_scratch.iter_mut())
+            .zip(mask_scratch.iter_mut())
+            .for_each(|((w, vs), ms)| {
+                let w: f64 = w.as_();
+                *vs = invert_no_zero(w);
+                *ms = f64::from(w > 0.0 && w < f64::INFINITY);
+            });
 
-        unsafe {
-            // invert weights once per pass, since input samples are often re-used
-            for k in 0..n_in {
-                let w: f64 = (*weight_in.uget(k)).as_();
-                *var_scratch.get_unchecked_mut(k) = invert_no_zero(w);
-                *mask_scratch.get_unchecked_mut(k) = f64::from(w > 0.0 && w < f64::INFINITY);
-            }
+        #[allow(
+            clippy::unwrap_used,
+            reason = "indices are valid based on plan construction"
+        )]
+        self.i0
+            .iter()
+            .zip(self.c1.iter())
+            .zip(self.valid.iter())
+            .zip(y_out.iter_mut())
+            .zip(weight_out.iter_mut())
+            .for_each(|((((i0, s1), valid), yo), wo)| {
+                // valid only if both plan mask and input mask agree
+                let valid =
+                    valid * mask_scratch.get(*i0).unwrap() * mask_scratch.get(*i0 + 1).unwrap();
+                // do interpolation
+                let a = (*y_in.get(*i0).unwrap()).as_();
+                let b = (*y_in.get(*i0 + 1).unwrap()).as_();
 
-            for j in 0..n_out {
-                // extract the interpolation indices and weight
-                let i0 = *self.i0.get_unchecked(j);
-                let i1 = i0 + 1;
-                // interpolation coefficients
-                let s1 = *self.c1.get_unchecked(j);
-
-                // check if sample is valid from the plan or masked
-                // from the input mask
-                let valid = *self.valid.get_unchecked(j)
-                    * *mask_scratch.get_unchecked(i0)
-                    * *mask_scratch.get_unchecked(i1);
-
-                // interpolate data onto the target sample
-                let a = (*y_in.uget(i0)).as_();
-                let b = (*y_in.uget(i1)).as_();
-                *y_out.uget_mut(j) = T::from_f64(valid * (b - a).mul_add(s1, a));
+                *yo = T::from_f64(valid * (b - a).mul_add(*s1, a));
 
                 // propagate weights and masking
-                let var_a = *var_scratch.get_unchecked(i0);
-                let var_b = *var_scratch.get_unchecked(i1);
+                let var_a = var_scratch.get(*i0).unwrap();
+                let var_b = var_scratch.get(*i0 + 1).unwrap();
 
                 let s0 = 1.0 - s1;
                 let c0 = s0 * s0 * var_a;
                 let c1 = s1 * s1 * var_b;
                 let norm = invert_no_zero(c0 + c1);
-                // valid is either 1.0 or 0.0
-                *weight_out.uget_mut(j) = T::from_f64(valid * norm);
-            }
-        }
+                // valid is either 1..0 or 0.0
+                *wo = T::from_f64(valid * norm);
+            });
     }
 }
