@@ -18,6 +18,10 @@ test:
     cargo nextest run --workspace --profile ci --no-tests="warn"
     cargo test --doc --workspace --all-features
 
+# run all benchmarks
+bench:
+    cargo bench --benches --workspace --no-fail-fast --features "mimalloc"
+
 # build all workspace docs
 doc:
     cargo doc --workspace --lib --release --no-deps --document-private-items
