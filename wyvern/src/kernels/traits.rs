@@ -3,7 +3,9 @@
 /// Implements a basic kernel
 pub trait Kernel {
     /// Build a kernel with a fixed number of taps
-    fn build(ntaps: usize) -> Self;
+    fn build(ntaps: usize) -> Self
+    where
+        Self: Sized;
     /// Evaluate the kernel at a point
     fn evaluate(&self, x: f64) -> f64;
     /// Half-width computed from `ntaps`
