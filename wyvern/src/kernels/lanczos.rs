@@ -1,7 +1,7 @@
 //! Truncated sinc Lanczos kernel
 use super::traits::Kernel;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LanczosKernel {
     /// Number of taps
     ntaps: usize,

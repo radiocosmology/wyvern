@@ -2,25 +2,25 @@
 use pyo3::prelude::*;
 
 mod dispatch;
-pub mod lanczos;
-pub mod linear;
+mod interface;
 mod utils;
 
 pub use dispatch::*;
 pub use utils::*;
 
 #[pymodule(submodule)]
-pub mod interpolate {
+#[pyo3(name = "interpolate")]
+pub mod _interpolate {
     use pyo3::prelude::*;
 
     #[pymodule_export]
-    use super::lanczos::interpolate_lanczos;
+    use super::interface::interpolate_kernel;
     #[pymodule_export]
-    use super::lanczos::interpolate_lanczos_weighted;
+    use super::interface::interpolate_kernel_weighted;
     #[pymodule_export]
-    use super::linear::interpolate_linear;
+    use super::interface::interpolate_linear;
     #[pymodule_export]
-    use super::linear::interpolate_linear_weighted;
+    use super::interface::interpolate_linear_weighted;
 
     #[pymodule_init]
     #[allow(

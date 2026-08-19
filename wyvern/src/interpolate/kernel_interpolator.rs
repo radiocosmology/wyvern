@@ -37,7 +37,7 @@ impl<const N: usize> KernelInterpolator<N> {
     pub fn build(
         x_in: &[f64],
         x_out: &[f64],
-        kernel: &impl Kernel,
+        kernel: &dyn Kernel,
         filter_scale: f64,
     ) -> eyre::Result<Self> {
         let n_in = x_in.len();
@@ -343,8 +343,6 @@ macro_rules! define_dynamic_kernel_plan {
                 /// # Parameters
                 /// ``x_in``: sorted, arbitrary spacing, len >= N
                 /// ``x_out``: sorted, uniform spacing, len >= 1
-                /// ``n_taps``: number of desired window taps. Window scaling is
-                ///             applied when downsampling.
                 /// ``kernel``: kernel function
                 ///
                 /// # Returns
@@ -356,12 +354,9 @@ macro_rules! define_dynamic_kernel_plan {
                 pub fn build(
                     x_in: &[f64],
                     x_out: &[f64],
-                    n_taps: usize,
-                    mut kernel: impl Kernel,
+                    kernel: &mut dyn Kernel,
                 ) -> eyre::Result<Self> {
-                    if n_taps < 2 {
-                        eyre::bail!("require at least 2 taps!");
-                    }
+                    let n_taps = kernel.ntaps();
                     // compute the required filter scaling
                     let (required_taps, filter_scale) = compute_scaled_taps(x_in, x_out, n_taps)?;
                     // rescale the kernel
@@ -373,7 +368,7 @@ macro_rules! define_dynamic_kernel_plan {
 
                     $(
                         if required_taps <= $n {
-                            return Ok(Self::[<W $n>](KernelInterpolator::<$n>::build(x_in, x_out, &kernel, filter_scale)?));
+                            return Ok(Self::[<W $n>](KernelInterpolator::<$n>::build(x_in, x_out, kernel, filter_scale)?));
                         }
                     )+
 

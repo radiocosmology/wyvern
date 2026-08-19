@@ -1,0 +1,122 @@
+//! Python bindings for `wyvern::kernels`.
+use pyo3::prelude::*;
+#[cfg(feature = "stub-gen")]
+use pyo3_stub_gen::{
+    PyStubType, TypeInfo,
+    derive::{gen_stub_pyclass, gen_stub_pymethods},
+};
+
+use wyvern::kernels;
+use wyvern::kernels::traits::Kernel;
+
+macro_rules! build_py_kernels {
+    ($(($py_name:ident, $rust_type:ty, $py_class_name:literal, $variant:ident, $repr:expr)),+ $(,)?) => {
+        $(
+            #[cfg_attr(
+                feature = "stub-gen",
+                gen_stub_pyclass(module = "wyvern.kernels")
+            )]
+            #[pyclass(name = $py_class_name, from_py_object)]
+            #[derive(Debug, Clone)]
+            pub struct $py_name {
+                inner: $rust_type,
+            }
+
+            #[cfg_attr(
+                feature = "stub-gen",
+                gen_stub_pymethods
+            )]
+            #[pymethods]
+            impl $py_name {
+                #[new]
+                fn new(ntaps: usize) -> Self {
+                    Self {
+                        inner: <$rust_type as Kernel>::build(ntaps),
+                    }
+                }
+
+                fn __repr__(&self) -> String {
+                    ($repr)(&self.inner)
+                }
+            }
+        )+
+
+        /// Generic [`Kernel`] to dispatch from python boundary
+        #[derive(FromPyObject)]
+        pub enum AnyKernel {
+            $($variant($py_name)),+
+        }
+
+        impl AnyKernel {
+            pub fn into_inner(self) -> Box<dyn Kernel> {
+                match self {
+                    $(AnyKernel::$variant(k) => Box::new(k.inner)),+
+                }
+            }
+        }
+
+        #[cfg(feature = "stub-gen")]
+        impl PyStubType for AnyKernel {
+            fn type_output() -> TypeInfo {
+                build_py_kernels!(@union_fold $($py_name),+)
+            }
+        }
+
+        fn register_kernel_classes(m: &Bound<'_, PyModule>) -> PyResult<()> {
+            $(m.add_class::<$py_name>()?;)+
+            Ok(())
+        }
+    };
+
+    // Internal helper rule: folds N types into a single `T1 | T2 | ... | Tn` TypeInfo
+    (@union_fold $first:ident $(, $rest:ident)*) => {
+        {
+            let mut combined = <$first as PyStubType>::type_output();
+            $(
+                combined = combined | <$rest as PyStubType>::type_output();
+            )*
+            combined
+        }
+    };
+}
+
+#[allow(clippy::wildcard_imports, reason = "clarity")]
+#[pymodule(submodule)]
+#[pyo3(name = "kernels")]
+pub mod _kernels {
+    use super::*;
+
+    build_py_kernels!(
+        (
+            PyLanczosKernel,
+            kernels::LanczosKernel,
+            "LanczosKernel",
+            Lanczos,
+            |k: &kernels::LanczosKernel| format!("LanczosKernel(a={})", k.half_width())
+        ),
+        (
+            PyKaiserBesselKernel,
+            kernels::KaiserBesselKernel,
+            "KaiserBesselKernel",
+            KaiserBessel,
+            |k: &kernels::KaiserBesselKernel| format!(
+                "KaiserBesselKernel(a={}, beta={})",
+                k.half_width(),
+                k.beta()
+            )
+        )
+    );
+
+    #[pymodule_init]
+    #[allow(
+        clippy::missing_const_for_fn,
+        clippy::unnecessary_wraps,
+        unused_variables,
+        reason = "generic init"
+    )]
+    fn init(m: &Bound<'_, PyModule>) -> PyResult<()> {
+        // need to manually register the kernels due to macro expansion
+        // and pymodule initialization ordering conflicts
+        register_kernel_classes(m)
+    }
+}

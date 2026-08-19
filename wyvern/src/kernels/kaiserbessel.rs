@@ -1,7 +1,7 @@
 //! Kaiser-bessel window with fixed a -> beta relationship
 use super::traits::Kernel;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct KaiserBesselKernel {
     /// Number of taps
     ntaps: usize,
@@ -20,6 +20,12 @@ impl KaiserBesselKernel {
     #[inline]
     fn beta_from_width(a: f64) -> f64 {
         Self::BETA_SCALE * 2.0 * a
+    }
+
+    #[inline]
+    #[must_use]
+    pub const fn beta(&self) -> f64 {
+        self.beta
     }
 }
 

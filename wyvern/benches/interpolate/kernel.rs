@@ -21,8 +21,8 @@ fn make_lanczos_interpolator(
     let x_in: Vec<f64> = (0..n_in).map(|i| i as f64 / n_in as f64).collect();
     let x_out: Vec<f64> = (0..n_out).map(|i| i as f64 / n_in as f64).collect();
 
-    let kernel = BoxKernel::build(n_taps);
-    interpolate::DynamicKernelInterpolator::build(&x_in, &x_out, n_taps, kernel)
+    let mut kernel = BoxKernel::build(n_taps);
+    interpolate::DynamicKernelInterpolator::build(&x_in, &x_out, &mut kernel)
 }
 
 fn bench_base(
