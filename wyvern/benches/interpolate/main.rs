@@ -1,8 +1,8 @@
 //! Performance benchmarks for interpolation methods
 mod common;
-mod lanczos;
+mod kernel;
 mod linear;
 
 use criterion::criterion_main;
 
-criterion_main!(linear::linear_benches, lanczos::lanczos_benches);
+criterion_main!(linear::linear_benches, kernel::lanczos_benches);
