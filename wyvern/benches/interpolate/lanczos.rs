@@ -3,7 +3,7 @@ use criterion::{Criterion, criterion_group};
 use ndarray::{ArrayView1, ArrayViewMut1};
 use std::hint::black_box;
 use wyvern::interpolate::{self, Interpolator, IntoInterpolator};
-use wyvern::kernels::LanczosKernel;
+use wyvern::kernels::{LanczosKernel, traits::Kernel};
 
 use crate::common;
 
@@ -21,9 +21,7 @@ fn make_lanczos_interpolator(
     let x_in: Vec<f64> = (0..n_in).map(|i| i as f64 / n_in as f64).collect();
     let x_out: Vec<f64> = (0..n_out).map(|i| i as f64 / n_in as f64).collect();
 
-    let kernel = LanczosKernel {
-        a: (n_taps as f64 / 2.0).floor(),
-    };
+    let kernel = LanczosKernel::build(n_taps);
     interpolate::DynamicKernelInterpolator::build(&x_in, &x_out, n_taps, kernel)
 }
 

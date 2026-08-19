@@ -1,7 +1,7 @@
 //! Implementation of [`InterpolationPlan`] for a kernel-based interpolator
 use super::helpers::{invert_no_zero, median_abs_sample_spacing};
 use super::interpolator::{InterpolationPlan, Interpolator, IntoInterpolator};
-use crate::kernels::Kernel;
+use crate::kernels::traits::Kernel;
 use crate::types::FloatLike;
 use ndarray::{ArrayView1, ArrayViewMut1};
 
@@ -369,7 +369,7 @@ macro_rules! define_dynamic_kernel_plan {
                         clippy::cast_precision_loss,
                         reason = "required_taps will not large enough for precision loss"
                     )]
-                    kernel.update_half_width((required_taps as f64 / 2.0).floor());
+                    kernel.set_ntaps(required_taps);
 
                     $(
                         if required_taps <= $n {
