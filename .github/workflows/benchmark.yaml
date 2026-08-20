@@ -16,6 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -23,4 +26,5 @@ jobs:
           shared-key: "ci-cache"
           # prevent cross-os issues
           prefix-key: "${{ runner.os }}-rust wv"
+
       - run: cargo bench
