@@ -15,12 +15,10 @@ pub struct KaiserBesselKernel {
 }
 
 impl KaiserBesselKernel {
-    /// Empirical constant relating `beta` to `a`
-    const BETA_SCALE: f64 = 2.34;
-
     #[inline]
     fn beta_from_width(a: f64) -> f64 {
-        Self::BETA_SCALE * 2.0 * a
+        // Empirical constant relating `beta` to `a`
+        std::f64::consts::PI * a
     }
 
     #[inline]
@@ -51,7 +49,7 @@ impl Kernel for KaiserBesselKernel {
 
     #[inline]
     fn evaluate(&self, x: f64) -> f64 {
-        if x.abs() >= self.a {
+        if x.abs() > self.a {
             0.0
         } else {
             let ratio = x / self.a;
