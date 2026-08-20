@@ -1,5 +1,6 @@
 //! Kaiser-bessel window with fixed a -> beta relationship
 use super::traits::Kernel;
+use puruspe::bessel::In;
 
 #[derive(Debug, Clone)]
 pub struct KaiserBesselKernel {
@@ -38,7 +39,7 @@ impl Kernel for KaiserBesselKernel {
     fn build(ntaps: usize) -> Self {
         let a = (ntaps / 2) as f64;
         let beta = Self::beta_from_width(a);
-        let i0_beta = xsf::bessel_i0(beta);
+        let i0_beta = In(0, beta);
 
         Self {
             ntaps,
@@ -55,7 +56,7 @@ impl Kernel for KaiserBesselKernel {
         } else {
             let ratio = x / self.a;
             let arg = self.beta * ratio.mul_add(-ratio, 1.0).sqrt();
-            xsf::bessel_i0(arg) / self.i0_beta
+            In(0, arg) / self.i0_beta
         }
     }
 
@@ -78,6 +79,6 @@ impl Kernel for KaiserBesselKernel {
         self.ntaps = ntaps;
         self.a = (ntaps / 2) as f64;
         self.beta = Self::beta_from_width(self.a);
-        self.i0_beta = xsf::bessel_i0(self.beta);
+        self.i0_beta = In(0, self.beta);
     }
 }
