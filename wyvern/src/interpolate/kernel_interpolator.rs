@@ -49,6 +49,12 @@ impl<const N: usize> KernelInterpolator<N> {
         if n_out < 1 {
             eyre::bail!("need at least 1 output sample!");
         }
+        if kernel.ntaps() > N {
+            eyre::bail!(
+                "kernel num taps ({}) is greater than available window size {N}",
+                kernel.ntaps()
+            );
+        }
 
         #[allow(
             clippy::cast_precision_loss,
@@ -56,22 +62,12 @@ impl<const N: usize> KernelInterpolator<N> {
             reason = "values too small for precision loss and integer division is desired"
         )]
         // kernel half-width as a float and integer
-        let (a_half, a_half_isize) = {
-            let ah = N / 2;
-            (ah as f64, ah.cast_signed())
-        };
-
-        // require that the kernel matches the compiled half-width, rather
-        // than deriving from the kernel itself
-        // half-width should be an integer, so allow only a very
-        // small tolerance
-        // NB: this would probably be nice to change
-        if (kernel.half_width() - a_half).abs() >= 1.0e-10 {
-            eyre::bail!(
-                "kernel half-width `{:?}` is not equal to expected half-width `{a_half}`",
-                kernel.half_width()
-            );
-        }
+        let a_half = kernel.half_width();
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "possible kernel width values are far too small for truncation to occur"
+        )]
+        let a_half_isize = a_half as isize;
 
         let mut i0 = Vec::<usize>::with_capacity(n_out);
         let mut center_a = Vec::<usize>::with_capacity(n_out);
