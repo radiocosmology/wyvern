@@ -1,9 +1,12 @@
 //! Implementation of [`InterpolationPlan`] for a kernel-based interpolator
+use ndarray::{ArrayView1, ArrayViewMut1};
+
 use super::helpers::{invert_no_zero, median_abs_sample_spacing};
 use super::interpolator::{InterpolationPlan, Interpolator, IntoInterpolator};
+
 use crate::kernels::traits::Kernel;
 use crate::types::FloatLike;
-use ndarray::{ArrayView1, ArrayViewMut1};
+use crate::util::assert_unchecked_debug;
 
 /// Precomputed interpolation plan for a lanczos kernel
 pub struct KernelInterpolator<const N: usize> {
@@ -181,14 +184,13 @@ impl<T: FloatLike, const N: usize> Interpolator<T> for KernelInterpolator<N> {
     fn interp_row(&self, y_in: &ArrayView1<T>, mut y_out: ArrayViewMut1<T>) {
         assert_eq!(self.len(), y_out.len());
         assert_eq!(self.n_in(), y_in.len());
-        // confirm that _all_ indices are valid
-        debug_assert!(self.i0.iter().all(|&i0| i0 < y_in.len() - 1));
 
         self.i0
             .iter()
             .zip(self.coeffs.iter())
             .zip(y_out.iter_mut())
             .for_each(|((i0, c0), yo)| {
+                assert_unchecked_debug!(*i0 + N < self.n_in());
                 // accumulate over the kernel
                 let mut value_acc: f64 = 0.0;
 
@@ -219,6 +221,9 @@ impl<T: FloatLike, const N: usize> Interpolator<T> for KernelInterpolator<N> {
             .zip(self.center_a.iter())
             .zip(y_out.iter_mut())
             .for_each(|((((i0, c0), valid), a_idx), yo)| {
+                assert_unchecked_debug!(*i0 + N < self.n_in());
+                assert_unchecked_debug!(*a_idx + 1 < self.n_in());
+
                 let msl = unsafe { mask_in.get_unchecked(*i0..*i0 + N) };
 
                 let mut renorm: f64 = 0.0;
@@ -282,6 +287,9 @@ impl<T: FloatLike, const N: usize> Interpolator<T> for KernelInterpolator<N> {
             .zip(y_out.iter_mut())
             .zip(weight_out.iter_mut())
             .for_each(|(((((i0, c0), valid), a_idx), yo), wo)| {
+                assert_unchecked_debug!(*i0 + N < self.n_in());
+                assert_unchecked_debug!(*a_idx + 1 < self.n_in());
+
                 let vsl = unsafe { var_scratch.get_unchecked(*i0..*i0 + N) };
                 let msl = unsafe { mask_scratch.get_unchecked(*i0..*i0 + N) };
 
