@@ -2,6 +2,7 @@
 mod importutil;
 mod pyinterpolate;
 mod pykernels;
+mod pyutils;
 
 use pyo3::prelude::*;
 #[cfg(feature = "stub-gen")]

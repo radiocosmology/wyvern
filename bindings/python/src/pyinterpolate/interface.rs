@@ -4,9 +4,11 @@ use pyo3::prelude::*;
 #[cfg(feature = "stub-gen")]
 use pyo3_stub_gen::derive::gen_stub_pyfunction;
 
-use super::{dispatch_unweighted, dispatch_weighted, require_dtype, require_ndim};
-use crate::pykernels::_kernels::AnyKernel;
 use wyvern::interpolate::{DynamicKernelInterpolator, LinearInterpolator};
+
+use super::{dispatch_unweighted, dispatch_weighted};
+use crate::pykernels::_kernels::AnyKernel;
+use crate::pyutils::{require_dtype, require_ndim};
 
 /// Linearly interpolate a 2D array.
 ///
