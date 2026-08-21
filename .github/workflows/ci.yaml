@@ -24,9 +24,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           # share cache across jobs
-          shared-key: "ci-cache"
+          shared-key: "ci-cache-${{ github.workflow }}"
           # prevent cross-os issues
-          prefix-key: "${{ runner.os }}-rust wv"
+          prefix-key: "${{ runner.os }}-rust"
       - name: Install python 3.14
         run: uv python install 3.14
       - uses: extractions/setup-just@v4
@@ -50,9 +50,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           # share cache across jobs
-          shared-key: "ci-cache"
+          shared-key: "ci-cache-${{ github.workflow }}"
           # prevent cross-os issues
-          prefix-key: "${{ runner.os }}-rust wv"
+          prefix-key: "${{ runner.os }}-rust"
       - uses: extractions/setup-just@v4
       - name: Run unit tests
         run: just test
