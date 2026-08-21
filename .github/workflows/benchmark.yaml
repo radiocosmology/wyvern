@@ -23,8 +23,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           # share cache across jobs
-          shared-key: "ci-cache"
+          shared-key: "ci-cache-${{ github.workflow }}"
           # prevent cross-os issues
-          prefix-key: "${{ runner.os }}-rust wv"
-
-      - run: cargo bench
+          prefix-key: "${{ runner.os }}-rust"
+      - uses: extractions/setup-just@v4
+      - run: just bench

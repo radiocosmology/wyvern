@@ -20,7 +20,7 @@ test:
 
 # run all benchmarks
 bench:
-    cargo bench --benches --workspace --no-fail-fast --features "mimalloc"
+    cargo bench --benches --package "wyvern" --no-fail-fast --features "mimalloc"
 
 # build all workspace docs
 doc:
