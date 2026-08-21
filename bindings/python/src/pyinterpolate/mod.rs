@@ -3,10 +3,8 @@ use pyo3::prelude::*;
 
 mod dispatch;
 mod interface;
-mod utils;
 
 pub use dispatch::*;
-pub use utils::*;
 
 #[pymodule(submodule)]
 #[pyo3(name = "interpolate")]

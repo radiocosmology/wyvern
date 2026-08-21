@@ -35,6 +35,10 @@ macro_rules! build_py_kernels {
                     }
                 }
 
+                fn evaluate(&self, x: f64) -> f64 {
+                    self.inner.evaluate(x)
+                }
+
                 fn __repr__(&self) -> String {
                     ($repr)(&self.inner)
                 }

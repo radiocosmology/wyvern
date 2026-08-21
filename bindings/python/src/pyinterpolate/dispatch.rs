@@ -9,11 +9,12 @@ use numpy::{
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 
-use super::{ensure_array, require_ndim, split_complex_view, split_complex_view_mut};
 use wyvern::interpolate::{
     InterpolationPlan, Interpolator, IntoInterpolator, ParallelInterpolator,
 };
 use wyvern::types::ParFloatLike;
+
+use crate::pyutils::{ensure_array, require_ndim, split_complex_view, split_complex_view_mut};
 
 // ------ Dispatch to typed methods ------
 
