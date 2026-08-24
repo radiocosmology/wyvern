@@ -1,5 +1,4 @@
 //! Implementation of [`InterpolationPlan`] for a kernel-based interpolator
-use ndarray::{ArrayView1, ArrayViewMut1};
 
 use super::helpers::{invert_no_zero, median_abs_sample_spacing};
 use super::interpolator::{InterpolationPlan, Interpolator, IntoInterpolator};
@@ -181,7 +180,7 @@ impl<const N: usize> IntoInterpolator for KernelInterpolator<N> {
 
 impl<T: FloatLike, const N: usize> Interpolator<T> for KernelInterpolator<N> {
     #[inline]
-    fn interp_row(&self, y_in: &ArrayView1<T>, mut y_out: ArrayViewMut1<T>) {
+    fn interp_row(&self, y_in: &[T], y_out: &mut [T]) {
         assert_eq!(self.len(), y_out.len());
         assert_eq!(self.n_in(), y_in.len());
 
@@ -195,7 +194,7 @@ impl<T: FloatLike, const N: usize> Interpolator<T> for KernelInterpolator<N> {
                 let mut value_acc: f64 = 0.0;
 
                 c0.iter().enumerate().for_each(|(k, ck)| {
-                    let yk = unsafe { *y_in.uget(*i0 + k) }.as_();
+                    let yk = unsafe { *y_in.get_unchecked(*i0 + k) }.as_();
                     value_acc = ck.mul_add(yk, value_acc);
                 });
 
@@ -204,12 +203,7 @@ impl<T: FloatLike, const N: usize> Interpolator<T> for KernelInterpolator<N> {
     }
 
     #[inline]
-    fn interp_row_masked(
-        &self,
-        y_in: &ArrayView1<T>,
-        mask_in: &mut [f64],
-        mut y_out: ArrayViewMut1<T>,
-    ) {
+    fn interp_row_masked(&self, y_in: &[T], mask_in: &mut [f64], y_out: &mut [T]) {
         assert_eq!(self.n_in(), y_in.len());
         assert_eq!(self.n_in(), mask_in.len());
         assert_eq!(self.len(), y_out.len());
@@ -232,7 +226,7 @@ impl<T: FloatLike, const N: usize> Interpolator<T> for KernelInterpolator<N> {
                     .zip(msl.iter())
                     .enumerate()
                     .for_each(|(k, (ck, mk))| {
-                        let yk = unsafe { *y_in.uget(*i0 + k) }.as_();
+                        let yk = unsafe { *y_in.get_unchecked(*i0 + k) }.as_();
                         // accumulate data and renorm
                         let mck = mk * ck;
                         value_acc = mck.mul_add(yk, value_acc);
@@ -253,12 +247,12 @@ impl<T: FloatLike, const N: usize> Interpolator<T> for KernelInterpolator<N> {
     #[inline]
     fn interp_row_with_variance(
         &self,
-        y_in: &ArrayView1<T>,
-        weight_in: &ArrayView1<T>,
+        y_in: &[T],
+        weight_in: &[T],
         var_scratch: &mut [f64],
         mask_scratch: &mut [f64],
-        mut y_out: ArrayViewMut1<T>,
-        mut weight_out: ArrayViewMut1<T>,
+        y_out: &mut [T],
+        weight_out: &mut [T],
     ) {
         assert_eq!(self.n_in(), y_in.len());
         assert_eq!(self.n_in(), weight_in.len());
@@ -301,7 +295,7 @@ impl<T: FloatLike, const N: usize> Interpolator<T> for KernelInterpolator<N> {
                     .zip(msl.iter())
                     .enumerate()
                     .for_each(|(k, ((ck, vk), mk))| {
-                        let yk = unsafe { *y_in.uget(*i0 + k) }.as_();
+                        let yk = unsafe { *y_in.get_unchecked(*i0 + k) }.as_();
                         // accumulate data and variance
                         let mck = mk * ck;
                         value_acc = mck.mul_add(yk, value_acc);

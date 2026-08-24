@@ -1,5 +1,4 @@
 //! Linear implementation for a [`InterpolationPlan`].
-use ndarray::{ArrayView1, ArrayViewMut1};
 
 use super::helpers::{invert_no_zero, median_abs_sample_spacing};
 use super::interpolator::{InterpolationPlan, Interpolator, IntoInterpolator};
@@ -117,7 +116,7 @@ impl IntoInterpolator for LinearInterpolator {
 
 impl<T: FloatLike> Interpolator<T> for LinearInterpolator {
     #[inline]
-    fn interp_row(&self, y_in: &ArrayView1<T>, mut y_out: ArrayViewMut1<T>) {
+    fn interp_row(&self, y_in: &[T], y_out: &mut [T]) {
         assert_eq!(self.len(), y_out.len());
         assert_eq!(self.n_in(), y_in.len());
 
@@ -128,20 +127,15 @@ impl<T: FloatLike> Interpolator<T> for LinearInterpolator {
             .for_each(|((i0, s1), yo)| {
                 assert_unchecked_debug!(*i0 < self.n_in() - 1);
 
-                let a = unsafe { y_in.uget(*i0) }.as_();
-                let b = unsafe { y_in.uget(*i0 + 1) }.as_();
+                let a = unsafe { y_in.get_unchecked(*i0) }.as_();
+                let b = unsafe { y_in.get_unchecked(*i0 + 1) }.as_();
 
                 *yo = T::from_f64((b - a).mul_add(*s1, a));
             });
     }
 
     #[inline]
-    fn interp_row_masked(
-        &self,
-        y_in: &ArrayView1<T>,
-        mask_in: &mut [f64],
-        mut y_out: ArrayViewMut1<T>,
-    ) {
+    fn interp_row_masked(&self, y_in: &[T], mask_in: &mut [f64], y_out: &mut [T]) {
         assert_eq!(self.n_in(), y_in.len());
         assert_eq!(self.n_in(), mask_in.len());
         assert_eq!(self.len(), y_out.len());
@@ -154,8 +148,8 @@ impl<T: FloatLike> Interpolator<T> for LinearInterpolator {
             .for_each(|(((i0, s1), valid), yo)| {
                 assert_unchecked_debug!(*i0 < self.n_in() - 1);
 
-                let a = unsafe { y_in.uget(*i0) }.as_();
-                let b = unsafe { y_in.uget(*i0 + 1) }.as_();
+                let a = unsafe { y_in.get_unchecked(*i0) }.as_();
+                let b = unsafe { y_in.get_unchecked(*i0 + 1) }.as_();
                 let mask_a = unsafe { mask_in.get_unchecked(*i0) };
                 let mask_b = unsafe { mask_in.get_unchecked(*i0 + 1) };
 
@@ -168,12 +162,12 @@ impl<T: FloatLike> Interpolator<T> for LinearInterpolator {
     #[inline]
     fn interp_row_with_variance(
         &self,
-        y_in: &ArrayView1<T>,
-        weight_in: &ArrayView1<T>,
+        y_in: &[T],
+        weight_in: &[T],
         var_scratch: &mut [f64],
         mask_scratch: &mut [f64],
-        mut y_out: ArrayViewMut1<T>,
-        mut weight_out: ArrayViewMut1<T>,
+        y_out: &mut [T],
+        weight_out: &mut [T],
     ) {
         assert_eq!(self.n_in(), y_in.len());
         assert_eq!(self.n_in(), weight_in.len());
@@ -181,8 +175,6 @@ impl<T: FloatLike> Interpolator<T> for LinearInterpolator {
         assert_eq!(self.n_in(), mask_scratch.len());
         assert_eq!(self.len(), y_out.len());
         assert_eq!(self.len(), weight_out.len());
-        // confirm that _all_ indices are valid
-        debug_assert!(self.i0.iter().all(|&i0| i0 < y_in.len() - 1));
 
         // invert weights once per pass, since input samples
         // are often reused
@@ -205,8 +197,8 @@ impl<T: FloatLike> Interpolator<T> for LinearInterpolator {
             .for_each(|((((i0, s1), valid), yo), wo)| {
                 assert_unchecked_debug!(*i0 < self.n_in() - 1);
 
-                let a = unsafe { y_in.uget(*i0) }.as_();
-                let b = unsafe { y_in.uget(*i0 + 1) }.as_();
+                let a = unsafe { y_in.get_unchecked(*i0) }.as_();
+                let b = unsafe { y_in.get_unchecked(*i0 + 1) }.as_();
                 let mask_a = unsafe { mask_scratch.get_unchecked(*i0) };
                 let mask_b = unsafe { mask_scratch.get_unchecked(*i0 + 1) };
                 let var_a = unsafe { var_scratch.get_unchecked(*i0) };
