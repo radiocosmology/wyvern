@@ -11,7 +11,7 @@ use crate::common;
     clippy::cast_precision_loss,
     reason = "values too small for precision loss"
 )]
-fn make_linear_interpolator(
+pub fn make_linear_interpolator(
     n_in: usize,
     n_out: usize,
 ) -> eyre::Result<interpolate::LinearInterpolator> {
