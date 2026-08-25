@@ -14,7 +14,7 @@ pub fn ensure_array<'py, T: Element + Zero>(
     arr: Option<&Bound<'py, PyUntypedArray>>,
     shape: [usize; 2],
 ) -> PyResult<PyReadwriteArray2<'py, T>> {
-    // extract an existing array or
+    // extract an existing array or create a new one
     let out: PyReadwriteArray2<'py, T> = match arr {
         Some(untyped) => untyped.extract()?,
         None => PyArray2::<T>::zeros(py, shape, false).readwrite(),
