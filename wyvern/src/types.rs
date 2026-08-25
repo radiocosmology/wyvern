@@ -1,8 +1,9 @@
 //! Type-related traits
+use num_complex::Complex;
 use num_traits::AsPrimitive;
 
 /// f64/f32 type which can be cast back and forth using ``as_()``
-pub trait FloatLike: AsPrimitive<f64> + Copy + 'static {
+pub trait FloatLike: AsPrimitive<f64> + Copy + Sync + Send + 'static {
     fn from_f64(x: f64) -> Self;
 }
 impl FloatLike for f32 {
@@ -22,6 +23,36 @@ impl FloatLike for f64 {
     }
 }
 
-/// `[FloatLike]` type which can also be shared across threads
-pub trait ParFloatLike: FloatLike + Send + Sync {}
-impl<T> ParFloatLike for T where T: FloatLike + Send + Sync {}
+/// `Complex` or real value field
+pub trait MaybeComplex: Copy + Sync + Send + 'static {
+    type Real: FloatLike;
+    const IS_COMPLEX: bool;
+}
+
+impl<T: FloatLike> MaybeComplex for T {
+    type Real = T;
+    const IS_COMPLEX: bool = false;
+}
+
+impl<T: FloatLike> MaybeComplex for Complex<T> {
+    type Real = T;
+    const IS_COMPLEX: bool = true;
+}
+
+/// Reinterpret a possibly-complex slice into a real slice
+pub const fn as_real_slice<T>(x: &[T]) -> &[T::Real]
+where
+    T: MaybeComplex,
+{
+    let factor = if T::IS_COMPLEX { 2 } else { 1 };
+    unsafe { std::slice::from_raw_parts(x.as_ptr().cast::<T::Real>(), x.len() * factor) }
+}
+
+/// Reinterpret a possibly-complex slice into a real mutable slice
+pub const fn as_real_slice_mut<T>(x: &mut [T]) -> &mut [T::Real]
+where
+    T: MaybeComplex,
+{
+    let factor = if T::IS_COMPLEX { 2 } else { 1 };
+    unsafe { std::slice::from_raw_parts_mut(x.as_mut_ptr().cast::<T::Real>(), x.len() * factor) }
+}

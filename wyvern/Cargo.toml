@@ -15,6 +15,7 @@ keywords = ["wyvern"]
 eyre = "0.6.12"
 mimalloc = {version = "0.1.52", optional = true }
 ndarray = { version = "0.17.2", features = ["rayon"] }
+num-complex = "0.4.6"
 num-traits = "0.2.19"
 paste = "1.0.15"
 puruspe = "0.4.4"

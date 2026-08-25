@@ -1,10 +1,11 @@
 //! Implementation of [`InterpolationPlan`] for a kernel-based interpolator
+use num_traits::AsPrimitive;
 
 use super::helpers::{invert_no_zero, median_abs_sample_spacing};
 use super::interpolator::{InterpolationPlan, Interpolator, IntoInterpolator};
 
 use crate::kernels::traits::Kernel;
-use crate::types::FloatLike;
+use crate::types::{FloatLike, MaybeComplex, as_real_slice, as_real_slice_mut};
 use crate::util::assert_unchecked_debug;
 
 /// Precomputed interpolation plan for a lanczos kernel
@@ -173,74 +174,93 @@ impl<const N: usize> InterpolationPlan for KernelInterpolator<N> {
 
 impl<const N: usize> IntoInterpolator for KernelInterpolator<N> {
     #[inline]
-    fn as_interpolator<T: FloatLike>(&self) -> &dyn Interpolator<T> {
+    fn as_interpolator<T: MaybeComplex>(&self) -> &dyn Interpolator<T> {
         self
     }
 }
 
-impl<T: FloatLike, const N: usize> Interpolator<T> for KernelInterpolator<N> {
+impl<T: MaybeComplex, const N: usize> Interpolator<T> for KernelInterpolator<N> {
     #[inline]
     fn interp_row(&self, y_in: &[T], y_out: &mut [T]) {
-        assert_eq!(self.len(), y_out.len());
-        assert_eq!(self.n_in(), y_in.len());
+        // reinterpret as real slice
+        let y_in = as_real_slice(y_in);
+        let y_out = as_real_slice_mut(y_out);
+        let stride = if T::IS_COMPLEX { 2 } else { 1 };
+
+        assert_eq!(self.len() * stride, y_out.len());
+        assert_eq!(self.n_in() * stride, y_in.len());
 
         self.i0
             .iter()
             .zip(self.coeffs.iter())
-            .zip(y_out.iter_mut())
+            .zip(y_out.chunks_exact_mut(stride))
             .for_each(|((i0, c0), yo)| {
                 assert_unchecked_debug!(*i0 + N < self.n_in());
-                // accumulate over the kernel
-                let mut value_acc: f64 = 0.0;
 
-                c0.iter().enumerate().for_each(|(k, ck)| {
-                    let yk = unsafe { *y_in.get_unchecked(*i0 + k) }.as_();
-                    value_acc = ck.mul_add(yk, value_acc);
-                });
+                for (k, yo_k) in yo.iter_mut().enumerate() {
+                    // accumulate over the kernel coefficients
+                    let mut value_acc: f64 = 0.0;
 
-                *yo = T::from_f64(value_acc);
+                    c0.iter().enumerate().for_each(|(j, cj)| {
+                        let yj =
+                            unsafe { *y_in.get_unchecked(*i0 * stride + k + j * stride) }.as_();
+                        value_acc = cj.mul_add(yj, value_acc);
+                    });
+
+                    *yo_k = T::Real::from_f64(value_acc);
+                }
             });
     }
 
     #[inline]
-    fn interp_row_masked(&self, y_in: &[T], mask_in: &mut [f64], y_out: &mut [T]) {
-        assert_eq!(self.n_in(), y_in.len());
+    fn interp_row_masked(&self, y_in: &[T], mask_in: &[f64], y_out: &mut [T]) {
+        // interpret as real slices
+        let y_in = as_real_slice(y_in);
+        let y_out = as_real_slice_mut(y_out);
+        let stride = if T::IS_COMPLEX { 2 } else { 1 };
+
+        assert_eq!(self.n_in() * stride, y_in.len());
         assert_eq!(self.n_in(), mask_in.len());
-        assert_eq!(self.len(), y_out.len());
+        assert_eq!(self.len() * stride, y_out.len());
 
         self.i0
             .iter()
             .zip(self.coeffs.iter())
             .zip(self.valid.iter())
             .zip(self.center_a.iter())
-            .zip(y_out.iter_mut())
+            .zip(y_out.chunks_exact_mut(stride))
             .for_each(|((((i0, c0), valid), a_idx), yo)| {
                 assert_unchecked_debug!(*i0 + N < self.n_in());
                 assert_unchecked_debug!(*a_idx + 1 < self.n_in());
-
-                let msl = unsafe { mask_in.get_unchecked(*i0..*i0 + N) };
-
-                let mut renorm: f64 = 0.0;
-                let mut value_acc: f64 = 0.0;
-                c0.iter()
-                    .zip(msl.iter())
-                    .enumerate()
-                    .for_each(|(k, (ck, mk))| {
-                        let yk = unsafe { *y_in.get_unchecked(*i0 + k) }.as_();
-                        // accumulate data and renorm
-                        let mck = mk * ck;
-                        value_acc = mck.mul_add(yk, value_acc);
-                        renorm += mck;
-                    });
 
                 // A sample is valid only if the window centre falls
                 // between two valid samples
                 let mask_a = unsafe { mask_in.get_unchecked(*a_idx) };
                 let mask_b = unsafe { mask_in.get_unchecked(*a_idx + 1) };
                 let mask = valid * mask_a * mask_b;
-                // invert the norm, zeroing the sample if `renorm` is zero
-                let inv_norm = invert_no_zero(renorm);
-                *yo = T::from_f64(mask * value_acc * inv_norm);
+
+                let msl = unsafe { mask_in.get_unchecked(*i0..*i0 + N) };
+
+                for (k, yo_k) in yo.iter_mut().enumerate() {
+                    let mut renorm: f64 = 0.0;
+                    let mut value_acc: f64 = 0.0;
+
+                    c0.iter()
+                        .zip(msl.iter())
+                        .enumerate()
+                        .for_each(|(j, (cj, mj))| {
+                            let yj =
+                                unsafe { *y_in.get_unchecked(*i0 * stride + k + j * stride) }.as_();
+                            // accumulate data and renorm
+                            let mcj = mj * cj;
+                            value_acc = mcj.mul_add(yj, value_acc);
+                            renorm += mcj;
+                        });
+
+                    // invert the norm, zeroing the sample if `renorm` is zero
+                    let inv_norm = invert_no_zero(renorm);
+                    *yo_k = T::Real::from_f64(mask * value_acc * inv_norm);
+                }
             });
     }
 
@@ -248,17 +268,22 @@ impl<T: FloatLike, const N: usize> Interpolator<T> for KernelInterpolator<N> {
     fn interp_row_with_variance(
         &self,
         y_in: &[T],
-        weight_in: &[T],
+        weight_in: &[T::Real],
         var_scratch: &mut [f64],
         mask_scratch: &mut [f64],
         y_out: &mut [T],
-        weight_out: &mut [T],
+        weight_out: &mut [T::Real],
     ) {
-        assert_eq!(self.n_in(), y_in.len());
+        // interpret as real slices
+        let y_in = as_real_slice(y_in);
+        let y_out = as_real_slice_mut(y_out);
+        let stride = if T::IS_COMPLEX { 2 } else { 1 };
+
+        assert_eq!(self.n_in() * stride, y_in.len());
         assert_eq!(self.n_in(), weight_in.len());
         assert_eq!(self.n_in(), var_scratch.len());
         assert_eq!(self.n_in(), mask_scratch.len());
-        assert_eq!(self.len(), y_out.len());
+        assert_eq!(self.len() * stride, y_out.len());
         assert_eq!(self.len(), weight_out.len());
 
         // invert weights once per pass, since input samples
@@ -278,7 +303,7 @@ impl<T: FloatLike, const N: usize> Interpolator<T> for KernelInterpolator<N> {
             .zip(self.coeffs.iter())
             .zip(self.valid.iter())
             .zip(self.center_a.iter())
-            .zip(y_out.iter_mut())
+            .zip(y_out.chunks_exact_mut(stride))
             .zip(weight_out.iter_mut())
             .for_each(|(((((i0, c0), valid), a_idx), yo), wo)| {
                 assert_unchecked_debug!(*i0 + N < self.n_in());
@@ -287,36 +312,46 @@ impl<T: FloatLike, const N: usize> Interpolator<T> for KernelInterpolator<N> {
                 let vsl = unsafe { var_scratch.get_unchecked(*i0..*i0 + N) };
                 let msl = unsafe { mask_scratch.get_unchecked(*i0..*i0 + N) };
 
-                let mut renorm: f64 = 0.0;
-                let mut value_acc: f64 = 0.0;
-                let mut var_acc: f64 = 0.0;
-                c0.iter()
-                    .zip(vsl.iter())
-                    .zip(msl.iter())
-                    .enumerate()
-                    .for_each(|(k, ((ck, vk), mk))| {
-                        let yk = unsafe { *y_in.get_unchecked(*i0 + k) }.as_();
-                        // accumulate data and variance
-                        let mck = mk * ck;
-                        value_acc = mck.mul_add(yk, value_acc);
-                        var_acc = (mck * ck).mul_add(*vk, var_acc);
-                        // accumulate updated coefficient norm
-                        renorm += mck;
-                    });
-
                 // variance is normalized by the new coefficient sum squared, inverted,
                 // and multiplied with the sample masks
                 // valid only if window center falls between two valid samples
                 let mask_a = unsafe { mask_scratch.get_unchecked(*a_idx) };
                 let mask_b = unsafe { mask_scratch.get_unchecked(*a_idx + 1) };
                 let mask = valid * mask_a * mask_b;
+
+                // Accumulate variance, only requires one pass
+                let mut renorm: f64 = 0.0;
+                let mut var_acc: f64 = 0.0;
+                c0.iter()
+                    .zip(vsl.iter())
+                    .zip(msl.iter())
+                    .for_each(|((cj, vj), mj)| {
+                        let mcj = mj * cj;
+                        var_acc = (mcj * cj).mul_add(*vj, var_acc);
+                        renorm += mcj;
+                    });
                 // invert the norm, zeroing the sample if `renorm` is zero. The
                 // corresponding weight will also be zeroed
                 let inv_norm = invert_no_zero(renorm);
-                *yo = T::from_f64(mask * value_acc * inv_norm);
-
                 let inv_var = invert_no_zero(var_acc);
-                *wo = T::from_f64(renorm * renorm * mask * inv_var);
+                *wo = T::Real::from_f64(renorm * renorm * mask * inv_var);
+
+                // now accmulate the data
+                for (k, yo_k) in yo.iter_mut().enumerate() {
+                    let mut value_acc: f64 = 0.0;
+
+                    c0.iter()
+                        .zip(msl.iter())
+                        .enumerate()
+                        .for_each(|(j, (cj, mj))| {
+                            let yj =
+                                unsafe { *y_in.get_unchecked(*i0 * stride + k + j * stride) }.as_();
+                            // accumulate data and variance
+                            value_acc = (mj * cj).mul_add(yj, value_acc);
+                        });
+
+                    *yo_k = T::Real::from_f64(mask * value_acc * inv_norm);
+                }
             });
     }
 }
@@ -399,7 +434,7 @@ macro_rules! define_dynamic_kernel_plan {
             impl IntoInterpolator for DynamicKernelInterpolator {
                 /// Returns a `%dyn Interpolator<T>` for callers to extract the
                 /// underlying typed interpolator
-                fn as_interpolator<T: FloatLike>(&self) -> &dyn Interpolator<T>
+                fn as_interpolator<T: MaybeComplex>(&self) -> &dyn Interpolator<T>
                 where
                     $( KernelInterpolator<$n>: Interpolator<T>, )+
                 {
