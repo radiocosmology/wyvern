@@ -1,9 +1,10 @@
 //! Linear implementation for a [`InterpolationPlan`].
+use num_traits::AsPrimitive;
 
 use super::helpers::{invert_no_zero, median_abs_sample_spacing};
 use super::interpolator::{InterpolationPlan, Interpolator, IntoInterpolator};
 
-use crate::types::FloatLike;
+use crate::types::{FloatLike, MaybeComplex, as_real_slice, as_real_slice_mut};
 use crate::util::assert_unchecked_debug;
 
 /// Precomputed interpolation plan for mapping input
@@ -109,53 +110,68 @@ impl InterpolationPlan for LinearInterpolator {
 
 impl IntoInterpolator for LinearInterpolator {
     #[inline]
-    fn as_interpolator<T: FloatLike>(&self) -> &dyn Interpolator<T> {
+    fn as_interpolator<T: MaybeComplex>(&self) -> &dyn Interpolator<T> {
         self
     }
 }
 
-impl<T: FloatLike> Interpolator<T> for LinearInterpolator {
+impl<T: MaybeComplex> Interpolator<T> for LinearInterpolator {
     #[inline]
     fn interp_row(&self, y_in: &[T], y_out: &mut [T]) {
-        assert_eq!(self.len(), y_out.len());
-        assert_eq!(self.n_in(), y_in.len());
+        // reinterpret as real slice
+        let y_in = as_real_slice(y_in);
+        let y_out = as_real_slice_mut(y_out);
+        let stride = if T::IS_COMPLEX { 2 } else { 1 };
+
+        assert_eq!(self.len() * stride, y_out.len());
+        assert_eq!(self.n_in() * stride, y_in.len());
 
         self.i0
             .iter()
             .zip(self.c1.iter())
-            .zip(y_out.iter_mut())
+            .zip(y_out.chunks_exact_mut(stride))
             .for_each(|((i0, s1), yo)| {
                 assert_unchecked_debug!(*i0 < self.n_in() - 1);
+                // iterate through each component if real, real/imag components
+                // if complex
+                for (k, yo_k) in yo.iter_mut().enumerate() {
+                    let a = unsafe { *y_in.get_unchecked(*i0 * stride + k) }.as_();
+                    let b = unsafe { *y_in.get_unchecked(*i0 * stride + k + stride) }.as_();
 
-                let a = unsafe { y_in.get_unchecked(*i0) }.as_();
-                let b = unsafe { y_in.get_unchecked(*i0 + 1) }.as_();
-
-                *yo = T::from_f64((b - a).mul_add(*s1, a));
+                    *yo_k = T::Real::from_f64((b - a).mul_add(*s1, a));
+                }
             });
     }
 
     #[inline]
-    fn interp_row_masked(&self, y_in: &[T], mask_in: &mut [f64], y_out: &mut [T]) {
-        assert_eq!(self.n_in(), y_in.len());
+    fn interp_row_masked(&self, y_in: &[T], mask_in: &[f64], y_out: &mut [T]) {
+        // interpret as real slices
+        let y_in = as_real_slice(y_in);
+        let y_out = as_real_slice_mut(y_out);
+        let stride = if T::IS_COMPLEX { 2 } else { 1 };
+
+        assert_eq!(self.n_in() * stride, y_in.len());
         assert_eq!(self.n_in(), mask_in.len());
-        assert_eq!(self.len(), y_out.len());
+        assert_eq!(self.len() * stride, y_out.len());
 
         self.i0
             .iter()
             .zip(self.c1.iter())
             .zip(self.valid.iter())
-            .zip(y_out.iter_mut())
+            .zip(y_out.chunks_exact_mut(stride))
             .for_each(|(((i0, s1), valid), yo)| {
                 assert_unchecked_debug!(*i0 < self.n_in() - 1);
 
-                let a = unsafe { y_in.get_unchecked(*i0) }.as_();
-                let b = unsafe { y_in.get_unchecked(*i0 + 1) }.as_();
                 let mask_a = unsafe { mask_in.get_unchecked(*i0) };
                 let mask_b = unsafe { mask_in.get_unchecked(*i0 + 1) };
-
                 let mask = valid * mask_a * mask_b;
 
-                *yo = T::from_f64(mask * (b - a).mul_add(*s1, a));
+                for (k, yo_k) in yo.iter_mut().enumerate() {
+                    let a = unsafe { y_in.get_unchecked(*i0 * stride + k) }.as_();
+                    let b = unsafe { y_in.get_unchecked(*i0 * stride + k + stride) }.as_();
+
+                    *yo_k = T::Real::from_f64(mask * (b - a).mul_add(*s1, a));
+                }
             });
     }
 
@@ -163,17 +179,22 @@ impl<T: FloatLike> Interpolator<T> for LinearInterpolator {
     fn interp_row_with_variance(
         &self,
         y_in: &[T],
-        weight_in: &[T],
+        weight_in: &[T::Real],
         var_scratch: &mut [f64],
         mask_scratch: &mut [f64],
         y_out: &mut [T],
-        weight_out: &mut [T],
+        weight_out: &mut [T::Real],
     ) {
-        assert_eq!(self.n_in(), y_in.len());
+        // interpret as real slices
+        let y_in = as_real_slice(y_in);
+        let y_out = as_real_slice_mut(y_out);
+        let stride = if T::IS_COMPLEX { 2 } else { 1 };
+
+        assert_eq!(self.n_in() * stride, y_in.len());
         assert_eq!(self.n_in(), weight_in.len());
         assert_eq!(self.n_in(), var_scratch.len());
         assert_eq!(self.n_in(), mask_scratch.len());
-        assert_eq!(self.len(), y_out.len());
+        assert_eq!(self.len() * stride, y_out.len());
         assert_eq!(self.len(), weight_out.len());
 
         // invert weights once per pass, since input samples
@@ -192,13 +213,11 @@ impl<T: FloatLike> Interpolator<T> for LinearInterpolator {
             .iter()
             .zip(self.c1.iter())
             .zip(self.valid.iter())
-            .zip(y_out.iter_mut())
+            .zip(y_out.chunks_exact_mut(stride))
             .zip(weight_out.iter_mut())
             .for_each(|((((i0, s1), valid), yo), wo)| {
                 assert_unchecked_debug!(*i0 < self.n_in() - 1);
 
-                let a = unsafe { y_in.get_unchecked(*i0) }.as_();
-                let b = unsafe { y_in.get_unchecked(*i0 + 1) }.as_();
                 let mask_a = unsafe { mask_scratch.get_unchecked(*i0) };
                 let mask_b = unsafe { mask_scratch.get_unchecked(*i0 + 1) };
                 let var_a = unsafe { var_scratch.get_unchecked(*i0) };
@@ -207,15 +226,20 @@ impl<T: FloatLike> Interpolator<T> for LinearInterpolator {
                 // valid only if both plan mask and input mask agree
                 let mask = valid * mask_a * mask_b;
 
-                *yo = T::from_f64(mask * (b - a).mul_add(*s1, a));
-
                 // propagate weights and masking
                 let s0 = 1.0 - s1;
                 let c0 = s0 * s0 * var_a;
                 let c1 = s1 * s1 * var_b;
                 let norm = invert_no_zero(c0 + c1);
                 // valid is either 1.0 or 0.0
-                *wo = T::from_f64(mask * norm);
+                *wo = T::Real::from_f64(mask * norm);
+
+                for (k, yo_k) in yo.iter_mut().enumerate() {
+                    let a = unsafe { y_in.get_unchecked(*i0 * stride + k) }.as_();
+                    let b = unsafe { y_in.get_unchecked(*i0 * stride + k + stride) }.as_();
+
+                    *yo_k = T::Real::from_f64(mask * (b - a).mul_add(*s1, a));
+                }
             });
     }
 }

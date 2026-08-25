@@ -1453,6 +1453,7 @@ dependencies = [
  "eyre",
  "mimalloc",
  "ndarray",
+ "num-complex",
  "num-traits",
  "paste",
  "puruspe",

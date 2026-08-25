@@ -5,6 +5,7 @@
 )]
 
 use criterion::{Criterion, criterion_group};
+use num_complex::Complex;
 use std::hint::black_box;
 use wyvern::interpolate::{self, Interpolator, IntoInterpolator};
 
@@ -26,8 +27,21 @@ pub fn make_linear_interpolator(
     interpolate::LinearInterpolator::build(&x_in, &x_out)
 }
 
-fn bench_base(interpolator: &interpolate::LinearInterpolator, y_in: &[f64], y_out: &mut [f64]) {
+fn bench_base_real(
+    interpolator: &interpolate::LinearInterpolator,
+    y_in: &[f64],
+    y_out: &mut [f64],
+) {
     let interpolator: &dyn Interpolator<f64> = interpolator.as_interpolator();
+    interpolator.interp_row(y_in, y_out);
+}
+
+fn bench_base_complex(
+    interpolator: &interpolate::LinearInterpolator,
+    y_in: &[Complex<f64>],
+    y_out: &mut [Complex<f64>],
+) {
+    let interpolator: &dyn Interpolator<Complex<f64>> = interpolator.as_interpolator();
     interpolator.interp_row(y_in, y_out);
 }
 
@@ -67,19 +81,31 @@ fn run_benchmarks(c: &mut Criterion) {
 
     #[allow(clippy::unwrap_used, reason = "will succeed as defined for test")]
     let interpolator = make_linear_interpolator(n_in, n_out).unwrap();
+
     let (y_in, mut y_out) = common::make_data(n_in, n_out);
+    let (y_in_c, mut y_out_c) = common::make_data_complex(n_in, n_out);
     let (weight_in, mut weight_out) = common::make_weights(n_in, n_out);
+
     let mut mask = common::make_mask(n_in);
     let mut var = common::make_mask(n_in); // scratch buffer, contents don't matter
 
     let mut group = c.benchmark_group("linear");
 
-    group.bench_function("interpolate_base", |b| {
+    group.bench_function("interpolate_base_real", |b| {
         b.iter(|| {
-            bench_base(
+            bench_base_real(
                 black_box(&interpolator),
                 black_box(y_in.as_slice().unwrap()),
                 black_box(y_out.as_slice_mut().unwrap()),
+            );
+        });
+    });
+    group.bench_function("interpolate_base_complex", |b| {
+        b.iter(|| {
+            bench_base_complex(
+                black_box(&interpolator),
+                black_box(y_in_c.as_slice().unwrap()),
+                black_box(y_out_c.as_slice_mut().unwrap()),
             );
         });
     });
