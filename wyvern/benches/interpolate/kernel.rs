@@ -21,17 +21,17 @@ fn make_lanczos_interpolator(
     n_in: usize,
     n_out: usize,
     n_taps: usize,
-) -> eyre::Result<interpolate::DynamicKernelInterpolator> {
+) -> eyre::Result<interpolate::KernelInterpolator> {
     // create the indices
     let x_in: Vec<f64> = (0..n_in).map(|i| i as f64 / n_in as f64).collect();
     let x_out: Vec<f64> = (0..n_out).map(|i| i as f64 / n_in as f64).collect();
 
     let mut kernel = BoxKernel::build(n_taps);
-    interpolate::DynamicKernelInterpolator::build(&x_in, &x_out, &mut kernel)
+    interpolate::KernelInterpolator::build(&x_in, &x_out, &mut kernel)
 }
 
 fn bench_base_real(
-    interpolator: &interpolate::DynamicKernelInterpolator,
+    interpolator: &interpolate::KernelInterpolator,
     y_in: &[f64],
     y_out: &mut [f64],
 ) {
@@ -40,7 +40,7 @@ fn bench_base_real(
 }
 
 fn bench_base_complex(
-    interpolator: &interpolate::DynamicKernelInterpolator,
+    interpolator: &interpolate::KernelInterpolator,
     y_in: &[Complex<f64>],
     y_out: &mut [Complex<f64>],
 ) {
@@ -49,7 +49,7 @@ fn bench_base_complex(
 }
 
 fn bench_masked_real(
-    interpolator: &interpolate::DynamicKernelInterpolator,
+    interpolator: &interpolate::KernelInterpolator,
     y_in: &[f64],
     mask_in: &mut [f64],
     y_out: &mut [f64],
@@ -59,7 +59,7 @@ fn bench_masked_real(
 }
 
 fn bench_masked_complex(
-    interpolator: &interpolate::DynamicKernelInterpolator,
+    interpolator: &interpolate::KernelInterpolator,
     y_in: &[Complex<f64>],
     mask_in: &mut [f64],
     y_out: &mut [Complex<f64>],
@@ -69,7 +69,7 @@ fn bench_masked_complex(
 }
 
 fn bench_with_variance_real(
-    interpolator: &interpolate::DynamicKernelInterpolator,
+    interpolator: &interpolate::KernelInterpolator,
     y_in: &[f64],
     weight_in: &[f64],
     var_scratch: &mut [f64],
@@ -89,7 +89,7 @@ fn bench_with_variance_real(
 }
 
 fn bench_with_variance_complex(
-    interpolator: &interpolate::DynamicKernelInterpolator,
+    interpolator: &interpolate::KernelInterpolator,
     y_in: &[Complex<f64>],
     weight_in: &[f64],
     var_scratch: &mut [f64],
