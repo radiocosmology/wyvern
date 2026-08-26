@@ -241,24 +241,31 @@ impl<T: MaybeComplex, const N: usize> Interpolator<T> for KernelInterpolator<N> 
 
                 let msl = unsafe { mask_in.get_unchecked(*i0..*i0 + N) };
 
+                // compute kernel renormalisation to account for masking
+                let mut renorm: f64 = 0.0;
+                // compute masked kernel coefficients
+                let masked_coeffs: Vec<f64> = c0
+                    .iter()
+                    .zip(msl.iter())
+                    .map(|(cj, mj)| {
+                        let mcj = cj * mj;
+                        renorm += mcj;
+                        mcj
+                    })
+                    .collect();
+
+                // invert the norm, zeroing the sample if `renorm` is zero
+                let inv_norm = invert_no_zero(renorm);
+
                 for (k, yo_k) in yo.iter_mut().enumerate() {
-                    let mut renorm: f64 = 0.0;
                     let mut value_acc: f64 = 0.0;
+                    // iterate over masked kernel coefficients
+                    for (j, mcj) in masked_coeffs.iter().enumerate() {
+                        let yj =
+                            unsafe { *y_in.get_unchecked(*i0 * stride + k + j * stride) }.as_();
+                        value_acc = mcj.mul_add(yj, value_acc);
+                    }
 
-                    c0.iter()
-                        .zip(msl.iter())
-                        .enumerate()
-                        .for_each(|(j, (cj, mj))| {
-                            let yj =
-                                unsafe { *y_in.get_unchecked(*i0 * stride + k + j * stride) }.as_();
-                            // accumulate data and renorm
-                            let mcj = mj * cj;
-                            value_acc = mcj.mul_add(yj, value_acc);
-                            renorm += mcj;
-                        });
-
-                    // invert the norm, zeroing the sample if `renorm` is zero
-                    let inv_norm = invert_no_zero(renorm);
                     *yo_k = T::Real::from_f64(mask * value_acc * inv_norm);
                 }
             });
@@ -319,36 +326,41 @@ impl<T: MaybeComplex, const N: usize> Interpolator<T> for KernelInterpolator<N> 
                 let mask_b = unsafe { mask_scratch.get_unchecked(*a_idx + 1) };
                 let mask = valid * mask_a * mask_b;
 
-                // Accumulate variance, only requires one pass
+                // accumulate variance, only requires one pass
                 let mut renorm: f64 = 0.0;
                 let mut var_acc: f64 = 0.0;
-                c0.iter()
-                    .zip(vsl.iter())
+                // the masked coefficients are re-used when accumulating
+                // the data below, so avoid re-computing
+                let masked_coeffs: Vec<f64> = c0
+                    .iter()
                     .zip(msl.iter())
-                    .for_each(|((cj, vj), mj)| {
-                        let mcj = mj * cj;
-                        var_acc = (mcj * cj).mul_add(*vj, var_acc);
+                    .zip(vsl.iter())
+                    .map(|((cj, mj), vj)| {
+                        let mcj = cj * mj;
                         renorm += mcj;
-                    });
+                        var_acc = (mcj * cj).mul_add(*vj, var_acc);
+                        mcj
+                    })
+                    .collect();
+
                 // invert the norm, zeroing the sample if `renorm` is zero. The
                 // corresponding weight will also be zeroed
                 let inv_norm = invert_no_zero(renorm);
                 let inv_var = invert_no_zero(var_acc);
+
                 *wo = T::Real::from_f64(renorm * renorm * mask * inv_var);
 
                 // now accmulate the data
                 for (k, yo_k) in yo.iter_mut().enumerate() {
                     let mut value_acc: f64 = 0.0;
-
-                    c0.iter()
-                        .zip(msl.iter())
-                        .enumerate()
-                        .for_each(|(j, (cj, mj))| {
-                            let yj =
-                                unsafe { *y_in.get_unchecked(*i0 * stride + k + j * stride) }.as_();
-                            // accumulate data and variance
-                            value_acc = (mj * cj).mul_add(yj, value_acc);
-                        });
+                    // iterate over masked kernel coefficients. normalisation
+                    // has already been computed
+                    for (j, mcj) in masked_coeffs.iter().enumerate() {
+                        let yj =
+                            unsafe { *y_in.get_unchecked(*i0 * stride + k + j * stride) }.as_();
+                        // accumulate data and variance
+                        value_acc = mcj.mul_add(yj, value_acc);
+                    }
 
                     *yo_k = T::Real::from_f64(mask * value_acc * inv_norm);
                 }
