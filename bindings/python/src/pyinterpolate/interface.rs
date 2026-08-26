@@ -4,7 +4,7 @@ use pyo3::prelude::*;
 #[cfg(feature = "stub-gen")]
 use pyo3_stub_gen::derive::gen_stub_pyfunction;
 
-use wyvern::interpolate::{DynamicKernelInterpolator, LinearInterpolator};
+use wyvern::interpolate::{KernelInterpolator, LinearInterpolator};
 
 use super::{dispatch_unweighted, dispatch_weighted};
 use crate::pykernels::_kernels::AnyKernel;
@@ -153,7 +153,7 @@ pub fn interpolate_kernel<'py>(
     let x_out_sl = x_out.as_slice()?;
     // Build the interpolation plan based off of the inner kernel
     let mut boxed = kernel.into_inner();
-    let plan = DynamicKernelInterpolator::build(x_in_sl, x_out_sl, &mut *boxed)?;
+    let plan = KernelInterpolator::build(x_in_sl, x_out_sl, &mut *boxed)?;
 
     dispatch_unweighted(py, &plan, y_in, y_out)
 }
@@ -214,7 +214,7 @@ pub fn interpolate_kernel_weighted<'py>(
 
     // Build the interpolation plan based off of the inner kernel
     let mut boxed = kernel.into_inner();
-    let plan = DynamicKernelInterpolator::build(x_in_sl, x_out_sl, &mut *boxed)?;
+    let plan = KernelInterpolator::build(x_in_sl, x_out_sl, &mut *boxed)?;
 
     dispatch_weighted(py, &plan, y_in, w_in, y_out, w_out)
 }

@@ -9,7 +9,7 @@ use crate::types::{FloatLike, MaybeComplex, as_real_slice, as_real_slice_mut};
 use crate::util::assert_unchecked_debug;
 
 /// Precomputed interpolation plan for a lanczos kernel
-pub struct KernelInterpolator<const N: usize> {
+pub struct FixedWidthKernelInterpolator<const N: usize> {
     // index of the first window tap
     i0: Vec<usize>,
     // kernel coefficients
@@ -22,7 +22,7 @@ pub struct KernelInterpolator<const N: usize> {
     n_in: usize,
 }
 
-impl<const N: usize> KernelInterpolator<N> {
+impl<const N: usize> FixedWidthKernelInterpolator<N> {
     /// Build an interpolation plan for a kernel-based interpolator.
     ///
     /// # Parameters
@@ -32,7 +32,7 @@ impl<const N: usize> KernelInterpolator<N> {
     /// ``filter_scale``: kernel point separation scaling factor
     ///
     /// # Returns
-    /// [`KernelInterpolator`]
+    /// [`FixedWidthKernelInterpolator`]
     ///
     /// # Errors
     /// If input sample indices are unsorted or repeated, or too few
@@ -160,7 +160,7 @@ impl<const N: usize> KernelInterpolator<N> {
     }
 }
 
-impl<const N: usize> InterpolationPlan for KernelInterpolator<N> {
+impl<const N: usize> InterpolationPlan for FixedWidthKernelInterpolator<N> {
     #[inline]
     fn len(&self) -> usize {
         self.i0.len()
@@ -172,14 +172,14 @@ impl<const N: usize> InterpolationPlan for KernelInterpolator<N> {
     }
 }
 
-impl<const N: usize> IntoInterpolator for KernelInterpolator<N> {
+impl<const N: usize> IntoInterpolator for FixedWidthKernelInterpolator<N> {
     #[inline]
     fn as_interpolator<T: MaybeComplex>(&self) -> &dyn Interpolator<T> {
         self
     }
 }
 
-impl<T: MaybeComplex, const N: usize> Interpolator<T> for KernelInterpolator<N> {
+impl<T: MaybeComplex, const N: usize> Interpolator<T> for FixedWidthKernelInterpolator<N> {
     #[inline]
     fn interp_row(&self, y_in: &[T], y_out: &mut [T]) {
         // reinterpret as real slice
@@ -368,18 +368,18 @@ impl<T: MaybeComplex, const N: usize> Interpolator<T> for KernelInterpolator<N> 
     }
 }
 
-/// Construct a [`DynamicKernelInterpolator`] enum for any number of supported
+/// Construct a [`KernelInterpolator`] enum for any number of supported
 /// tap widths
 macro_rules! define_dynamic_kernel_plan {
     ($($n:literal),+ $(,)?) => {
         paste::paste! {
-            pub enum DynamicKernelInterpolator {
+            pub enum KernelInterpolator {
                 $(
-                    [<W $n>](KernelInterpolator<$n>),
+                    [<W $n>](FixedWidthKernelInterpolator<$n>),
                 )+
             }
 
-            impl DynamicKernelInterpolator {
+            impl KernelInterpolator {
                 /// Build an interpolation plan for a kernel-based interpolator.
                 ///
                 /// Choose the smallest supported `N` that covers the required
@@ -391,7 +391,7 @@ macro_rules! define_dynamic_kernel_plan {
                 /// ``kernel``: kernel function
                 ///
                 /// # Returns
-                /// [`DynamicKernelInterpolator`]
+                /// [`KernelInterpolator`]
                 ///
                 /// # Errors
                 /// If input sample indices are unsorted or repeated, or too few
@@ -413,7 +413,7 @@ macro_rules! define_dynamic_kernel_plan {
 
                     $(
                         if required_taps <= $n {
-                            return Ok(Self::[<W $n>](KernelInterpolator::<$n>::build(x_in, x_out, kernel, filter_scale)?));
+                            return Ok(Self::[<W $n>](FixedWidthKernelInterpolator::<$n>::build(x_in, x_out, kernel, filter_scale)?));
                         }
                     )+
 
@@ -427,7 +427,7 @@ macro_rules! define_dynamic_kernel_plan {
                 }
             }
 
-            impl InterpolationPlan for DynamicKernelInterpolator {
+            impl InterpolationPlan for KernelInterpolator {
                 #[inline]
                 fn len(&self) -> usize {
                     match self {
@@ -443,12 +443,12 @@ macro_rules! define_dynamic_kernel_plan {
                 }
             }
 
-            impl IntoInterpolator for DynamicKernelInterpolator {
+            impl IntoInterpolator for KernelInterpolator {
                 /// Returns a `%dyn Interpolator<T>` for callers to extract the
                 /// underlying typed interpolator
                 fn as_interpolator<T: MaybeComplex>(&self) -> &dyn Interpolator<T>
                 where
-                    $( KernelInterpolator<$n>: Interpolator<T>, )+
+                    $( FixedWidthKernelInterpolator<$n>: Interpolator<T>, )+
                 {
                     match self {
                         $( Self::[<W $n>](p) => p, )+
