@@ -6,7 +6,7 @@ use numpy::{
     Element, PyArrayDescrMethods, PyArrayMethods, PyReadonlyArray2, PyReadwriteArray2,
     PyUntypedArray, PyUntypedArrayMethods, dtype,
 };
-use pyo3::exceptions::PyTypeError;
+use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 
 use wyvern::interpolate::{
@@ -15,6 +15,19 @@ use wyvern::interpolate::{
 use wyvern::types::MaybeComplex;
 
 use crate::pyutils::{ensure_array, require_ndim};
+
+/// Ensure that an array is contiguous
+macro_rules! check_c_contiguous {
+    ([ $( $arr:expr ),+ $(,)? ]) => {
+        $(
+            if !$arr.is_standard_layout() {
+                return Err(PyValueError::new_err(
+                    format!("Array {:?} is not C-contiguous!", stringify!($arr))
+                ))
+            }
+        )+
+    };
+}
 
 // ------ Dispatch to typed methods ------
 
@@ -31,7 +44,7 @@ macro_rules! try_dispatch_unweighted {
                 let interpolator: &dyn Interpolator<$pytype> = $plan.as_interpolator();
                 let interpolator = ParallelInterpolator::<$pytype>::with_interpolator(interpolator);
 
-                return Ok(unweighted::<$pytype>($py, &interpolator, &y_in, y_out));
+                return unweighted::<$pytype>($py, &interpolator, &y_in, y_out);
             }
         )+
     };
@@ -45,18 +58,16 @@ macro_rules! try_dispatch_weighted {
         [ $( ($pytype:ty, $wtype:ty) ),+ $(,)? ]
     ) => {
         $(
-            if $w_dtype.is_equiv_to(&dtype::<$wtype>($py)) {
+            if $w_dtype.is_equiv_to(&dtype::<$wtype>($py)) && $y_dtype.is_equiv_to(&dtype::<$pytype>($py)) {
                 let w_in: PyReadonlyArray2<$wtype> = $w_in.extract()?;
                 let w_out = ensure_array::<$wtype>($py, $w_out, $out_shape)?;
-                // match on the possible-complex data type
-                if $y_dtype.is_equiv_to(&dtype::<$pytype>($py)) {
-                    let y_in: PyReadonlyArray2<$pytype> = $y_in.extract()?;
-                    let y_out = ensure_array::<$pytype>($py, $y_out, $out_shape)?;
-                    let interpolator: &dyn Interpolator<$pytype> = $plan.as_interpolator();
-                    let interpolator = ParallelInterpolator::<$pytype>::with_interpolator(interpolator);
 
-                    return Ok(weighted::<$pytype>($py, &interpolator, &y_in, &w_in, y_out, w_out));
-                }
+                let y_in: PyReadonlyArray2<$pytype> = $y_in.extract()?;
+                let y_out = ensure_array::<$pytype>($py, $y_out, $out_shape)?;
+                let interpolator: &dyn Interpolator<$pytype> = $plan.as_interpolator();
+                let interpolator = ParallelInterpolator::<$pytype>::with_interpolator(interpolator);
+
+                return weighted::<$pytype>($py, &interpolator, &y_in, &w_in, y_out, w_out);
             }
         )+
     };
@@ -134,7 +145,7 @@ fn unweighted<'py, T>(
     interpolator: &ParallelInterpolator<T>,
     y_in: &PyReadonlyArray2<'py, T>,
     mut y_out: PyReadwriteArray2<'py, T>,
-) -> Py<PyUntypedArray>
+) -> PyResult<Py<PyUntypedArray>>
 where
     T: MaybeComplex + Element,
 {
@@ -142,9 +153,12 @@ where
     let y_in_view = y_in.as_array();
     let y_out_view = y_out.as_array_mut();
 
+    // require that arrays are c-contiguous
+    check_c_contiguous!([y_in_view, y_out_view]);
+
     py.detach(|| interpolator.interpolate(&y_in_view, y_out_view));
 
-    y_out.as_untyped().clone().unbind()
+    Ok(y_out.as_untyped().clone().unbind())
 }
 
 fn weighted<'py, T>(
@@ -154,7 +168,7 @@ fn weighted<'py, T>(
     w_in: &PyReadonlyArray2<'py, T::Real>,
     mut y_out: PyReadwriteArray2<'py, T>,
     mut w_out: PyReadwriteArray2<'py, T::Real>,
-) -> (Py<PyUntypedArray>, Py<PyUntypedArray>)
+) -> PyResult<(Py<PyUntypedArray>, Py<PyUntypedArray>)>
 where
     T: MaybeComplex + Element,
     T::Real: Element,
@@ -166,12 +180,15 @@ where
     let w_out_view = w_out.as_array_mut();
     let y_out_view = y_out.as_array_mut();
 
+    // require that arrays are c-contiguous
+    check_c_contiguous!([y_in_view, y_out_view, w_in_view, w_out_view]);
+
     py.detach(|| {
         interpolator.interpolate_weighted(&y_in_view, &w_in_view, y_out_view, w_out_view);
     });
 
-    (
+    Ok((
         y_out.as_untyped().clone().unbind(),
         w_out.as_untyped().clone().unbind(),
-    )
+    ))
 }
