@@ -34,10 +34,12 @@ def interpolate_kernel(
     ``kernel``
         [`AnyKernel`] instance.
     ``y_in``
-        2D float or complex float array to be interpolated.
+        2D float or complex float array to be interpolated. Must be
+        C-contiguous.
     ``y_out``
         Optional 2D float or complex float array to store output.
-        If this is None, a new array is allocated. Default is None.
+        Must be C-contigous. If this is None, a new array is
+        allocated. Default is None.
 
     Returns
     -------
@@ -68,16 +70,20 @@ def interpolate_kernel_weighted(
     ``n_taps``
         Lanczos kernel taps. Must be one of {4, 8, 16, 32}.
     ``y_in``
-        2D float or complex float array to be interpolated.
+        2D float or complex float array to be interpolated. Must be
+        C-contiguous.
     ``w_in``
         2D float array of inverse-variance sample weights. Weights are
         propagated by propagating variances and inverting the result.
+        Must be C-contiguous.
     ``y_out``
         Optional 2D float or complex float array to store output.
-        If this is None, a new array is allocated. Default is None.
+        Must be C-contiguous. If this is None, a new array is
+        allocated. Default is None.
     ``w_out``
         Optional 2D float array to store propagated weights.
-        If this is None, a new array is allocated. Default is None.
+        Must be C-contiguous. If this is None, a new array is
+        allocated. Default is None.
 
     Returns
     -------
@@ -105,10 +111,12 @@ def interpolate_linear(
         1D float64 sorted array with output sample indices. Must
         have uniform spacing.
     ``y_in``
-        2D float or complex float array to be interpolated.
+        2D float or complex float array to be interpolated. Must
+        be C-contiguous.
     ``y_out``
         Optional 2D float or complex float array to store output.
-        If this is None, a new array is allocated. Default is None.
+        Must be C-contiguous. If this is None, a new array is
+        allocated. Default is None.
 
     Returns
     -------
@@ -136,16 +144,20 @@ def interpolate_linear_weighted(
         1D float64 sorted array with output sample indices. Must
         have uniform spacing.
     ``y_in``
-        2D float or complex float array to be interpolated.
+        2D float or complex float array to be interpolated. Must be
+        C-contiguous.
     ``w_in``
         2D float array of inverse-variance sample weights. Weights are
         propagated by propagating variances and inverting the result.
+        Must be C-contiguous.
     ``y_out``
         Optional 2D float or complex float array to store output.
-        If this is None, a new array is allocated. Default is None.
+        Must be C-contiguous. If this is None, a new array is
+        allocated. Default is None.
     ``w_out``
-        Optional 2D float array to store propagated weights.
-        If this is None, a new array is allocated. Default is None.
+        Optional 2D float array to store propagated weights. Must
+        be C-contiguous. If this is None, a new array is allocated.
+        Default is None.
 
     Returns
     -------
