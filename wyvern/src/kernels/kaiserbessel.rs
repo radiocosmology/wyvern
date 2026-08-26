@@ -16,7 +16,7 @@ pub struct KaiserBesselKernel {
 
 impl KaiserBesselKernel {
     #[inline]
-    fn beta_from_width(a: f64) -> f64 {
+    fn beta_from_width_default(a: f64) -> f64 {
         // Empirical constant relating `beta` to `a`
         std::f64::consts::PI * a
     }
@@ -27,9 +27,20 @@ impl KaiserBesselKernel {
         self.beta
     }
 
+    /// Update the kernel beta parameter.
+    ///
+    /// This value will still be rescaled if `ntaps`
+    /// is updated.
     pub fn set_beta(&mut self, beta: f64) {
         self.beta = beta;
         self.i0_beta = In(0, beta);
+    }
+
+    /// Restore `beta` to a default value, based on
+    /// the kernel half-width.
+    pub fn set_beta_default(&mut self) {
+        self.beta = Self::beta_from_width_default(self.a);
+        self.i0_beta = In(0, self.beta);
     }
 }
 
@@ -41,7 +52,8 @@ impl Kernel for KaiserBesselKernel {
     )]
     fn build(ntaps: usize) -> Self {
         let a = (ntaps / 2) as f64;
-        let beta = Self::beta_from_width(a);
+        // use pi * a as a default
+        let beta = Self::beta_from_width_default(a);
         let i0_beta = In(0, beta);
 
         Self {
@@ -80,8 +92,10 @@ impl Kernel for KaiserBesselKernel {
     )]
     fn set_ntaps(&mut self, ntaps: usize) {
         self.ntaps = ntaps;
-        self.a = (ntaps / 2) as f64;
-        self.beta = Self::beta_from_width(self.a);
+        let a_new = (ntaps / 2) as f64;
+        // scale `beta` accordingly
+        self.beta *= a_new / self.a;
+        self.a = a_new;
         self.i0_beta = In(0, self.beta);
     }
 }

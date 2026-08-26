@@ -143,6 +143,7 @@ pub mod _kernels {
         methods_mut {
             fn set_ntaps(&mut self, ntaps: usize) -> ();
             fn set_beta(&mut self, beta: f64) -> ();
+            fn set_beta_default(&mut self) -> ();
         }
     );
 
