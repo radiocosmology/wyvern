@@ -25,12 +25,12 @@ jobs:
         with:
           python-version: "3.14"
       - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          # share cache across jobs
-          shared-key: "ci-cache-${{ github.workflow }}"
-          # prevent cross-os issues
-          prefix-key: "${{ runner.os }}-rust"
+      # - uses: Swatinem/rust-cache@v2
+      #   with:
+      #     # share cache across jobs
+      #     shared-key: "ci-cache-${{ github.workflow }}"
+      #     # prevent cross-os issues
+      #     prefix-key: "${{ runner.os }}-rust"
       - uses: extractions/setup-just@v4
       - name: Build and fix docs
         run: just doc-hosted
