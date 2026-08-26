@@ -16,7 +16,7 @@ __all__ = [
 def interpolate_kernel(
     x_in: numpy.typing.NDArray[typing.Any],
     x_out: numpy.typing.NDArray[typing.Any],
-    kernel: kernels.LanczosKernel | kernels.KaiserBesselKernel,
+    kernel: kernels.LanczosKernel | kernels.KaiserBesselKernel | kernels.BoxcarKernel,
     y_in: numpy.typing.NDArray[typing.Any],
     *,
     y_out: numpy.typing.NDArray[typing.Any] | None = None,
@@ -38,7 +38,7 @@ def interpolate_kernel(
         C-contiguous.
     ``y_out``
         Optional 2D float or complex float array to store output.
-        Must be C-contigous. If this is None, a new array is
+        Must be C-contiguous. If this is None, a new array is
         allocated. Default is None.
 
     Returns
@@ -50,7 +50,7 @@ def interpolate_kernel(
 def interpolate_kernel_weighted(
     x_in: numpy.typing.NDArray[typing.Any],
     x_out: numpy.typing.NDArray[typing.Any],
-    kernel: kernels.LanczosKernel | kernels.KaiserBesselKernel,
+    kernel: kernels.LanczosKernel | kernels.KaiserBesselKernel | kernels.BoxcarKernel,
     y_in: numpy.typing.NDArray[typing.Any],
     w_in: numpy.typing.NDArray[typing.Any],
     *,
@@ -67,8 +67,8 @@ def interpolate_kernel_weighted(
     ``x_out``
         1D float64 sorted array with output sample indices. Must
         have uniform spacing.
-    ``n_taps``
-        Lanczos kernel taps. Must be one of {4, 8, 16, 32}.
+    ``kernel``
+        [`AnyKernel`] instance.
     ``y_in``
         2D float or complex float array to be interpolated. Must be
         C-contiguous.
