@@ -195,7 +195,7 @@ impl<T: MaybeComplex, const N: usize> Interpolator<T> for KernelInterpolator<N> 
             .zip(self.coeffs.iter())
             .zip(y_out.chunks_exact_mut(stride))
             .for_each(|((i0, c0), yo)| {
-                assert_unchecked_debug!(*i0 + N < self.n_in());
+                assert_unchecked_debug!(*i0 + N <= self.n_in());
 
                 for (k, yo_k) in yo.iter_mut().enumerate() {
                     // accumulate over the kernel coefficients
@@ -230,7 +230,7 @@ impl<T: MaybeComplex, const N: usize> Interpolator<T> for KernelInterpolator<N> 
             .zip(self.center_a.iter())
             .zip(y_out.chunks_exact_mut(stride))
             .for_each(|((((i0, c0), valid), a_idx), yo)| {
-                assert_unchecked_debug!(*i0 + N < self.n_in());
+                assert_unchecked_debug!(*i0 + N <= self.n_in());
                 assert_unchecked_debug!(*a_idx + 1 < self.n_in());
 
                 // A sample is valid only if the window centre falls
@@ -313,7 +313,7 @@ impl<T: MaybeComplex, const N: usize> Interpolator<T> for KernelInterpolator<N> 
             .zip(y_out.chunks_exact_mut(stride))
             .zip(weight_out.iter_mut())
             .for_each(|(((((i0, c0), valid), a_idx), yo), wo)| {
-                assert_unchecked_debug!(*i0 + N < self.n_in());
+                assert_unchecked_debug!(*i0 + N <= self.n_in());
                 assert_unchecked_debug!(*a_idx + 1 < self.n_in());
 
                 let vsl = unsafe { var_scratch.get_unchecked(*i0..*i0 + N) };
@@ -350,7 +350,7 @@ impl<T: MaybeComplex, const N: usize> Interpolator<T> for KernelInterpolator<N> 
 
                 *wo = T::Real::from_f64(renorm * renorm * mask * inv_var);
 
-                // now accmulate the data
+                // now accumulate the data
                 for (k, yo_k) in yo.iter_mut().enumerate() {
                     let mut value_acc: f64 = 0.0;
                     // iterate over masked kernel coefficients. normalisation

@@ -2,10 +2,20 @@
 use num_complex::Complex;
 use num_traits::AsPrimitive;
 
+mod private {
+    pub trait Sealed {}
+
+    impl Sealed for f32 {}
+    impl Sealed for f64 {}
+}
+
 /// f64/f32 type which can be cast back and forth using ``as_()``
-pub trait FloatLike: AsPrimitive<f64> + Copy + Sync + Send + 'static {
+pub trait FloatLike:
+    private::Sealed + AsPrimitive<f64> + Copy + std::fmt::Debug + Sync + Send + 'static
+{
     fn from_f64(x: f64) -> Self;
 }
+
 impl FloatLike for f32 {
     #[inline]
     #[allow(
@@ -23,8 +33,10 @@ impl FloatLike for f64 {
     }
 }
 
+impl<T: FloatLike> private::Sealed for Complex<T> {}
+
 /// `Complex` or real value field
-pub trait MaybeComplex: Copy + Sync + Send + 'static {
+pub trait MaybeComplex: private::Sealed + Copy + std::fmt::Debug + Sync + Send + 'static {
     type Real: FloatLike;
     const IS_COMPLEX: bool;
 }

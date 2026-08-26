@@ -65,7 +65,7 @@ where
         Self { interpolator }
     }
 
-    /// Interpolate over the last axis of a real array.
+    /// Interpolate over the last axis of a real or [`num_complex::Complex`] array.
     ///
     /// # Panics
     /// Panics if the number of columns in `y_in` does not match the expected
@@ -88,7 +88,7 @@ where
             });
     }
 
-    /// Interpolate over the last axis of an array with an
+    /// Interpolate over the last axis of a real or [`Complex`] array with an
     /// accompanying mask.
     ///
     /// # Panics
@@ -129,7 +129,7 @@ where
             });
     }
 
-    /// Interpolate over the last axis of a real array
+    /// Interpolate over the last axis of a real or [`Complex`] array
     /// with accompanying weights.
     ///
     /// # Panics

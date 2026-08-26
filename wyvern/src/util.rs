@@ -1,4 +1,4 @@
-//! Interal utilities
+//! Internal utilities
 
 macro_rules! assert_unchecked_debug {
     ($cond:expr $(,)?) => {
