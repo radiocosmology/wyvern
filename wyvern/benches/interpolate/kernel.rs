@@ -8,7 +8,7 @@ use criterion::{Criterion, criterion_group};
 use num_complex::Complex;
 use std::hint::black_box;
 use wyvern::interpolate::{self, Interpolator, IntoInterpolator};
-use wyvern::kernels::{BoxKernel, traits::Kernel};
+use wyvern::kernels::{BoxcarKernel, traits::Kernel};
 
 use crate::common;
 
@@ -26,7 +26,7 @@ fn make_lanczos_interpolator(
     let x_in: Vec<f64> = (0..n_in).map(|i| i as f64 / n_in as f64).collect();
     let x_out: Vec<f64> = (0..n_out).map(|i| i as f64 / n_in as f64).collect();
 
-    let mut kernel = BoxKernel::build(n_taps);
+    let mut kernel = BoxcarKernel::build(n_taps);
     interpolate::KernelInterpolator::build(&x_in, &x_out, &mut kernel)
 }
 

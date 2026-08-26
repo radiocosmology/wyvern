@@ -26,6 +26,11 @@ impl KaiserBesselKernel {
     pub const fn beta(&self) -> f64 {
         self.beta
     }
+
+    pub fn set_beta(&mut self, beta: f64) {
+        self.beta = beta;
+        self.i0_beta = In(0, beta);
+    }
 }
 
 impl Kernel for KaiserBesselKernel {

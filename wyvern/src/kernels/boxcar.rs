@@ -1,15 +1,15 @@
 //! Boxcar kernel
 use super::traits::Kernel;
 
-#[derive(Debug)]
-pub struct BoxKernel {
+#[derive(Debug, Clone)]
+pub struct BoxcarKernel {
     /// Number of taps
     ntaps: usize,
     /// Width parameter
     a: f64,
 }
 
-impl Kernel for BoxKernel {
+impl Kernel for BoxcarKernel {
     #[allow(
         clippy::integer_division,
         clippy::cast_precision_loss,
