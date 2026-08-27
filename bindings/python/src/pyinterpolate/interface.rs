@@ -124,6 +124,10 @@ pub fn interpolate_linear_weighted<'py>(
 /// ``y_in``
 ///     2D float or complex float array to be interpolated. Must be
 ///     C-contiguous.
+/// ``scale``
+///     Optional kernel scaling factor. The inverse of this value is
+///     multiplied with the sample spacing before evaluating the
+///     kernel at each input sample. Default is 1.0.
 /// ``y_out``
 ///     Optional 2D float or complex float array to store output.
 ///     Must be C-contiguous. If this is None, a new array is
@@ -138,13 +142,14 @@ pub fn interpolate_linear_weighted<'py>(
     gen_stub_pyfunction(module = "wyvern.interpolate")
 )]
 #[pyfunction]
-#[pyo3(signature = (x_in, x_out, kernel, y_in, *, y_out = None))]
+#[pyo3(signature = (x_in, x_out, kernel, y_in, *, scale = 1.0, y_out = None))]
 pub fn interpolate_kernel<'py>(
     py: Python<'py>,
     x_in: &Bound<'py, PyUntypedArray>,
     x_out: &Bound<'py, PyUntypedArray>,
     kernel: AnyKernel,
     y_in: &Bound<'py, PyUntypedArray>,
+    scale: f64,
     y_out: Option<&Bound<'py, PyUntypedArray>>,
 ) -> PyResult<Py<PyUntypedArray>> {
     // validate and extract input samples
@@ -153,7 +158,7 @@ pub fn interpolate_kernel<'py>(
     let x_out_sl = x_out.as_slice()?;
     // Build the interpolation plan based off of the inner kernel
     let mut boxed = kernel.into_inner();
-    let plan = KernelInterpolator::build(x_in_sl, x_out_sl, &mut *boxed)?;
+    let plan = KernelInterpolator::build(x_in_sl, x_out_sl, &mut *boxed, Some(scale))?;
 
     dispatch_unweighted(py, &plan, y_in, y_out)
 }
@@ -176,6 +181,10 @@ pub fn interpolate_kernel<'py>(
 ///     2D float array of inverse-variance sample weights. Weights are
 ///     propagated by propagating variances and inverting the result.
 ///     Must be C-contiguous.
+/// ``scale``
+///     Optional kernel scaling factor. The inverse of this value is
+///     multiplied with the sample spacing before evaluating the
+///     kernel at each input sample. Default is 1.0.
 /// ``y_out``
 ///     Optional 2D float or complex float array to store output.
 ///     Must be C-contiguous. If this is None, a new array is
@@ -196,7 +205,7 @@ pub fn interpolate_kernel<'py>(
     gen_stub_pyfunction(module = "wyvern.interpolate")
 )]
 #[pyfunction]
-#[pyo3(signature = (x_in, x_out, kernel, y_in, w_in, *, y_out = None, w_out = None))]
+#[pyo3(signature = (x_in, x_out, kernel, y_in, w_in, *, scale = 1.0, y_out = None, w_out = None))]
 pub fn interpolate_kernel_weighted<'py>(
     py: Python<'py>,
     x_in: &Bound<'py, PyUntypedArray>,
@@ -204,6 +213,7 @@ pub fn interpolate_kernel_weighted<'py>(
     kernel: AnyKernel,
     y_in: &Bound<'py, PyUntypedArray>,
     w_in: &Bound<'py, PyUntypedArray>,
+    scale: f64,
     y_out: Option<&Bound<'py, PyUntypedArray>>,
     w_out: Option<&Bound<'py, PyUntypedArray>>,
 ) -> PyResult<(Py<PyUntypedArray>, Py<PyUntypedArray>)> {
@@ -214,7 +224,7 @@ pub fn interpolate_kernel_weighted<'py>(
 
     // Build the interpolation plan based off of the inner kernel
     let mut boxed = kernel.into_inner();
-    let plan = KernelInterpolator::build(x_in_sl, x_out_sl, &mut *boxed)?;
+    let plan = KernelInterpolator::build(x_in_sl, x_out_sl, &mut *boxed, Some(scale))?;
 
     dispatch_weighted(py, &plan, y_in, w_in, y_out, w_out)
 }
