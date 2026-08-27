@@ -16,7 +16,7 @@ use pyo3::prelude::*;
 /// * `shape`: The expected two-dimensional shape of the array.
 ///
 /// # Returns
-/// A writable NumPy array with the requested shape and dtype.
+/// A writable `NumPy` array with the requested shape and dtype.
 ///
 /// # Errors
 /// Returns a Python `ValueError` if the shape does not match, or a `TypeError`
