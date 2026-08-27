@@ -11,6 +11,9 @@ __all__ = [
 
 @typing.final
 class BoxcarKernel:
+    r"""
+    Python wrapper around a concrete Rust kernel implementation.
+    """
     def __new__(cls, ntaps: builtins.int) -> BoxcarKernel: ...
     def evaluate(self, x: builtins.float) -> builtins.float: ...
     def half_width(self) -> builtins.float: ...
@@ -19,6 +22,9 @@ class BoxcarKernel:
 
 @typing.final
 class KaiserBesselKernel:
+    r"""
+    Python wrapper around a concrete Rust kernel implementation.
+    """
     def __new__(cls, ntaps: builtins.int) -> KaiserBesselKernel: ...
     def evaluate(self, x: builtins.float) -> builtins.float: ...
     def half_width(self) -> builtins.float: ...
@@ -30,6 +36,9 @@ class KaiserBesselKernel:
 
 @typing.final
 class LanczosKernel:
+    r"""
+    Python wrapper around a concrete Rust kernel implementation.
+    """
     def __new__(cls, ntaps: builtins.int) -> LanczosKernel: ...
     def evaluate(self, x: builtins.float) -> builtins.float: ...
     def half_width(self) -> builtins.float: ...

@@ -29,28 +29,29 @@ def interpolate_kernel(
     Parameters
     ----------
     ``x_in``
-        1D float64 sorted array with input sample indices
+        1D float64 sorted array with input sample indices.
     ``x_out``
-        1D float64 sorted array with output sample indices. Must
-        have uniform spacing.
+        1D float64 sorted array with output sample indices. Must have uniform spacing.
     ``kernel``
-        [`AnyKernel`] instance.
+        [`AnyKernel`] instance describing the interpolation kernel.
     ``y_in``
-        2D float or complex float array to be interpolated. Must be
-        C-contiguous.
+        2D float or complex float array to be interpolated. Must be C-contiguous.
     ``scale``
-        Optional kernel scaling factor. The inverse of this value is
-        multiplied with the sample spacing before evaluating the
-        kernel at each input sample. Default is 1.0.
+        Optional kernel scaling factor. The inverse is multiplied with the sample spacing
+        before evaluating the kernel at each input sample. Default is `1.0`.
     ``y_out``
-        Optional 2D float or complex float array to store output.
-        Must be C-contiguous. If this is None, a new array is
-        allocated. Default is None.
+        Optional 2D float or complex float array to store output. Must be C-contiguous.
+        If `None`, a new array is allocated.
 
     Returns
     -------
     ``y_out``
-        2D float or complex float array, shape (-1, ``n_out``)
+        2D float or complex float array, shape `(-1, n_out)`.
+
+    Errors
+    ------
+    Raises `ValueError` when the kernel or coordinates are invalid; raises `TypeError`
+    for unsupported dtypes or invalid kernel objects.
     """
 
 def interpolate_kernel_weighted(
@@ -65,43 +66,42 @@ def interpolate_kernel_weighted(
     w_out: numpy.typing.NDArray[typing.Any] | None = None,
 ) -> tuple[numpy.typing.NDArray[typing.Any], numpy.typing.NDArray[typing.Any]]:
     r"""
-    Interpolate a 2D array with corresponding weights using a Lanczos kernel.
+    Interpolate a 2D array with corresponding weights using a kernel.
 
     Parameters
     ----------
     ``x_in``
-        1D float64 sorted array with input sample indices
+        1D float64 sorted array with input sample indices.
     ``x_out``
-        1D float64 sorted array with output sample indices. Must
-        have uniform spacing.
+        1D float64 sorted array with output sample indices. Must have uniform spacing.
     ``kernel``
-        [`AnyKernel`] instance.
+        [`AnyKernel`] instance describing the interpolation kernel.
     ``y_in``
-        2D float or complex float array to be interpolated. Must be
-        C-contiguous.
+        2D float or complex float array to be interpolated. Must be C-contiguous.
     ``w_in``
-        2D float array of inverse-variance sample weights. Weights are
-        propagated by propagating variances and inverting the result.
-        Must be C-contiguous.
+        2D float array of inverse-variance sample weights. Weights are propagated by
+        inverting the propagated variances. Must be C-contiguous.
     ``scale``
-        Optional kernel scaling factor. The inverse of this value is
-        multiplied with the sample spacing before evaluating the
-        kernel at each input sample. Default is 1.0.
+        Optional kernel scaling factor. The inverse of this value is multiplied with the
+        sample spacing before evaluating the kernel at each input sample. Default is `1.0`.
     ``y_out``
-        Optional 2D float or complex float array to store output.
-        Must be C-contiguous. If this is None, a new array is
-        allocated. Default is None.
+        Optional 2D float or complex float array to store output. Must be C-contiguous.
+        If `None`, a new array is allocated.
     ``w_out``
-        Optional 2D float array to store propagated weights.
-        Must be C-contiguous. If this is None, a new array is
-        allocated. Default is None.
+        Optional 2D float array to store propagated weights. Must be C-contiguous. If
+        `None`, a new array is allocated.
 
     Returns
     -------
     ``y_out``
-        2D float or complex float array, shape (-1, ``n_out``)
+        2D float or complex float array, shape `(-1, n_out)`.
     ``w_out``
-        2D float array, shape (-1, ``n_out``)
+        2D float array, shape `(-1, n_out)`.
+
+    Errors
+    ------
+    Raises `ValueError` when the kernel, coordinates, or weighting arrays are invalid;
+    raises `TypeError` for unsupported dtypes.
     """
 
 def interpolate_linear(
@@ -117,22 +117,24 @@ def interpolate_linear(
     Parameters
     ----------
     ``x_in``
-        1D float64 sorted array with input sample indices
+        1D float64 sorted array with input sample indices.
     ``x_out``
-        1D float64 sorted array with output sample indices. Must
-        have uniform spacing.
+        1D float64 sorted array with output sample indices. Must have uniform spacing.
     ``y_in``
-        2D float or complex float array to be interpolated. Must
-        be C-contiguous.
+        2D float or complex float array to be interpolated. Must be C-contiguous.
     ``y_out``
-        Optional 2D float or complex float array to store output.
-        Must be C-contiguous. If this is None, a new array is
-        allocated. Default is None.
+        Optional 2D float or complex float array to store output. Must be C-contiguous.
+        If `None`, a new array is allocated.
 
     Returns
     -------
     ``y_out``
-        2D float or complex float array, shape (-1, ``n_out``)
+        2D float or complex float array, shape `(-1, n_out)`.
+
+    Errors
+    ------
+    Raises `ValueError` when the input coordinates are not sorted, repeated, or have
+    incompatible dimensionality; raises `TypeError` for unsupported dtypes.
     """
 
 def interpolate_linear_weighted(
@@ -150,30 +152,30 @@ def interpolate_linear_weighted(
     Parameters
     ----------
     ``x_in``
-        1D float64 sorted array with input sample indices
+        1D float64 sorted array with input sample indices.
     ``x_out``
-        1D float64 sorted array with output sample indices. Must
-        have uniform spacing.
+        1D float64 sorted array with output sample indices. Must have uniform spacing.
     ``y_in``
-        2D float or complex float array to be interpolated. Must be
-        C-contiguous.
+        2D float or complex float array to be interpolated. Must be C-contiguous.
     ``w_in``
-        2D float array of inverse-variance sample weights. Weights are
-        propagated by propagating variances and inverting the result.
-        Must be C-contiguous.
+        2D float array of inverse-variance sample weights. Weights are propagated by
+        propagating variances and inverting the result. Must be C-contiguous.
     ``y_out``
-        Optional 2D float or complex float array to store output.
-        Must be C-contiguous. If this is None, a new array is
-        allocated. Default is None.
+        Optional 2D float or complex float array to store output. Must be C-contiguous.
+        If `None`, a new array is allocated.
     ``w_out``
-        Optional 2D float array to store propagated weights. Must
-        be C-contiguous. If this is None, a new array is allocated.
-        Default is None.
+        Optional 2D float array to store propagated weights. Must be C-contiguous. If
+        `None`, a new array is allocated.
 
     Returns
     -------
     ``y_out``
-        2D float or complex float array, shape (-1, ``n_out``)
+        2D float or complex float array, shape `(-1, n_out)`.
     ``w_out``
-        2D float array, shape (-1, ``n_out``)
+        2D float array, shape `(-1, n_out)`.
+
+    Errors
+    ------
+    Raises `ValueError` for invalid dimensions, unsorted coordinates, or malformed
+    weight arrays; raises `TypeError` when the dtypes are unsupported.
     """

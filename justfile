@@ -40,8 +40,8 @@ doc-hosted: doc
 # generate python stubs
 gen-stubs:
     cargo run --bin stub_gen --manifest-path {{bindings_dir}}/Cargo.toml --features stub-gen
-    uvx ruff check --fix {{py_src}}
-    uvx ruff format {{py_src}}
+    uvx ruff check --fix
+    uvx ruff format
 
 # generate and check that python stubs are up to date
 check-stubs: gen-stubs
@@ -66,4 +66,4 @@ ci: clippy test doc check-stubs
 # format all rust and python files
 fmt:
     cargo fmt --all
-    uvx ruff format {{py_src}}
+    uvx ruff format
