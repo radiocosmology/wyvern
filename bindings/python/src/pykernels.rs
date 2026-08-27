@@ -25,6 +25,7 @@ macro_rules! build_py_kernel {
             gen_stub_pyclass(module = "wyvern.kernels")
         )]
         #[pyclass(name = $py_class_name, from_py_object)]
+        /// Python wrapper around a concrete Rust kernel implementation.
         #[derive(Debug, Clone)]
         pub struct $py_name {
             inner: $rust_type,
@@ -66,12 +67,17 @@ macro_rules! build_kernel_enum {
     (
         $($py_name:ident => $variant:ident),+ $(,)?
     ) => {
+        /// A kernel variant accepted by the Python interpolation entry points.
         #[derive(FromPyObject)]
         pub enum AnyKernel {
             $($variant($py_name)),+
         }
 
         impl AnyKernel {
+            /// Unwrap the concrete Python kernel into the underlying Rust kernel trait object.
+            ///
+            /// # Returns
+            /// A boxed `dyn Kernel` containing the concrete kernel implementation.
             pub fn into_inner(self) -> Box<dyn Kernel> {
                 match self {
                     $(AnyKernel::$variant(k) => Box::new(k.inner)),+

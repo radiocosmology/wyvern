@@ -8,7 +8,19 @@ use numpy::{
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 
-/// Ensure that an array exists, and create it if it does not
+/// Ensure that a 2D array exists and matches the expected shape and dtype.
+///
+/// # Parameters
+/// * `py`: The active Python interpreter.
+/// * `arr`: An existing array to validate, or `None` to allocate a new one.
+/// * `shape`: The expected two-dimensional shape of the array.
+///
+/// # Returns
+/// A writable NumPy array with the requested shape and dtype.
+///
+/// # Errors
+/// Returns a Python `ValueError` if the shape does not match, or a `TypeError`
+/// if the array dtype is incompatible.
 pub fn ensure_array<'py, T: Element + Zero>(
     py: Python<'py>,
     arr: Option<&Bound<'py, PyUntypedArray>>,
@@ -38,7 +50,18 @@ pub fn ensure_array<'py, T: Element + Zero>(
     Ok(out)
 }
 
-/// Validate input dimension and return a python-compatible error
+/// Validate that an array has the expected dimensionality.
+///
+/// # Parameters
+/// * `arr`: The array to validate, or `None` if the parameter is optional.
+/// * `name`: Human-readable name of the array for diagnostics.
+/// * `expected_dim`: The number of dimensions the array must have.
+///
+/// # Returns
+/// `Ok(())` when the array matches the expected dimensionality.
+///
+/// # Errors
+/// Returns a Python `ValueError` when the provided array has an unexpected rank.
 pub fn require_ndim(
     arr: Option<&Bound<'_, PyUntypedArray>>,
     name: &str,
@@ -60,7 +83,18 @@ pub fn require_ndim(
     Ok(())
 }
 
-/// Validate dtype and return a python-compatible error
+/// Validate that an array has the expected dtype.
+///
+/// # Parameters
+/// * `arr`: The array to validate, or `None` if the parameter is optional.
+/// * `name`: Human-readable name of the array for diagnostics.
+/// * `expected_dtype`: The dtype that the array must match exactly.
+///
+/// # Returns
+/// `Ok(())` when the array satisfies the expected dtype.
+///
+/// # Errors
+/// Returns a Python `ValueError` when the array has an incompatible dtype.
 pub fn require_dtype(
     arr: Option<&Bound<'_, PyUntypedArray>>,
     name: &str,

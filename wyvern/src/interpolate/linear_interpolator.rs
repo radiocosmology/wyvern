@@ -7,16 +7,16 @@ use super::interpolator::{InterpolationPlan, Interpolator, IntoInterpolator};
 use crate::types::{FloatLike, MaybeComplex, as_real_slice, as_real_slice_mut};
 use crate::util::assert_unchecked_debug;
 
-/// Precomputed interpolation plan for mapping input
-/// and output samples.
+/// Precomputed interpolation plan for mapping input and output samples using a
+/// piecewise-linear kernel.
 pub struct LinearInterpolator {
-    // lower bracket index for input
+    /// Lower bracket index for each output sample in the input domain.
     i0: Vec<usize>,
-    // interpolation coefficient for i1 sample (w0 = 1 - w1)
+    /// Interpolation coefficient for the upper sample (`w0 = 1 - w1`).
     c1: Vec<f64>,
-    // mask for valid samples. 1.0 if valid, 0.0 otherwise
+    /// Validity mask for each output sample: `1.0` when valid, otherwise `0.0`.
     valid: Vec<f64>,
-    // number of input samples
+    /// Number of input samples used by the plan.
     n_in: usize,
 }
 

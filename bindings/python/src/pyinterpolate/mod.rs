@@ -4,6 +4,7 @@ use pyo3::prelude::*;
 mod dispatch;
 mod interface;
 
+/// Re-exported interpolation dispatch helpers used by the Python module.
 pub use dispatch::*;
 
 #[pymodule(submodule)]

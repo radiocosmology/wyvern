@@ -15,22 +15,24 @@ use crate::pyutils::{require_dtype, require_ndim};
 /// Parameters
 /// ----------
 /// ``x_in``
-///     1D float64 sorted array with input sample indices
+///     1D float64 sorted array with input sample indices.
 /// ``x_out``
-///     1D float64 sorted array with output sample indices. Must
-///     have uniform spacing.
+///     1D float64 sorted array with output sample indices. Must have uniform spacing.
 /// ``y_in``
-///     2D float or complex float array to be interpolated. Must
-///     be C-contiguous.
+///     2D float or complex float array to be interpolated. Must be C-contiguous.
 /// ``y_out``
-///     Optional 2D float or complex float array to store output.
-///     Must be C-contiguous. If this is None, a new array is
-///     allocated. Default is None.
+///     Optional 2D float or complex float array to store output. Must be C-contiguous.
+///     If `None`, a new array is allocated.
 ///
 /// Returns
 /// -------
 /// ``y_out``
-///     2D float or complex float array, shape (-1, ``n_out``)
+///     2D float or complex float array, shape `(-1, n_out)`.
+///
+/// Errors
+/// ------
+/// Raises `ValueError` when the input coordinates are not sorted, repeated, or have
+/// incompatible dimensionality; raises `TypeError` for unsupported dtypes.
 #[cfg_attr(
     feature = "stub-gen",
     gen_stub_pyfunction(module = "wyvern.interpolate")
@@ -59,32 +61,32 @@ pub fn interpolate_linear<'py>(
 /// Parameters
 /// ----------
 /// ``x_in``
-///     1D float64 sorted array with input sample indices
+///     1D float64 sorted array with input sample indices.
 /// ``x_out``
-///     1D float64 sorted array with output sample indices. Must
-///     have uniform spacing.
+///     1D float64 sorted array with output sample indices. Must have uniform spacing.
 /// ``y_in``
-///     2D float or complex float array to be interpolated. Must be
-///     C-contiguous.
+///     2D float or complex float array to be interpolated. Must be C-contiguous.
 /// ``w_in``
-///     2D float array of inverse-variance sample weights. Weights are
-///     propagated by propagating variances and inverting the result.
-///     Must be C-contiguous.
+///     2D float array of inverse-variance sample weights. Weights are propagated by
+///     propagating variances and inverting the result. Must be C-contiguous.
 /// ``y_out``
-///     Optional 2D float or complex float array to store output.
-///     Must be C-contiguous. If this is None, a new array is
-///     allocated. Default is None.
+///     Optional 2D float or complex float array to store output. Must be C-contiguous.
+///     If `None`, a new array is allocated.
 /// ``w_out``
-///     Optional 2D float array to store propagated weights. Must
-///     be C-contiguous. If this is None, a new array is allocated.
-///     Default is None.
+///     Optional 2D float array to store propagated weights. Must be C-contiguous. If
+///     `None`, a new array is allocated.
 ///
 /// Returns
 /// -------
 /// ``y_out``
-///     2D float or complex float array, shape (-1, ``n_out``)
+///     2D float or complex float array, shape `(-1, n_out)`.
 /// ``w_out``
-///     2D float array, shape (-1, ``n_out``)
+///     2D float array, shape `(-1, n_out)`.
+///
+/// Errors
+/// ------
+/// Raises `ValueError` for invalid dimensions, unsorted coordinates, or malformed
+/// weight arrays; raises `TypeError` when the dtypes are unsupported.
 #[cfg_attr(
     feature = "stub-gen",
     gen_stub_pyfunction(module = "wyvern.interpolate")
@@ -115,28 +117,29 @@ pub fn interpolate_linear_weighted<'py>(
 /// Parameters
 /// ----------
 /// ``x_in``
-///     1D float64 sorted array with input sample indices
+///     1D float64 sorted array with input sample indices.
 /// ``x_out``
-///     1D float64 sorted array with output sample indices. Must
-///     have uniform spacing.
+///     1D float64 sorted array with output sample indices. Must have uniform spacing.
 /// ``kernel``
-///     [`AnyKernel`] instance.
+///     [`AnyKernel`] instance describing the interpolation kernel.
 /// ``y_in``
-///     2D float or complex float array to be interpolated. Must be
-///     C-contiguous.
+///     2D float or complex float array to be interpolated. Must be C-contiguous.
 /// ``scale``
-///     Optional kernel scaling factor. The inverse of this value is
-///     multiplied with the sample spacing before evaluating the
-///     kernel at each input sample. Default is 1.0.
+///     Optional kernel scaling factor. The inverse is multiplied with the sample spacing
+///     before evaluating the kernel at each input sample. Default is `1.0`.
 /// ``y_out``
-///     Optional 2D float or complex float array to store output.
-///     Must be C-contiguous. If this is None, a new array is
-///     allocated. Default is None.
+///     Optional 2D float or complex float array to store output. Must be C-contiguous.
+///     If `None`, a new array is allocated.
 ///
 /// Returns
 /// -------
 /// ``y_out``
-///     2D float or complex float array, shape (-1, ``n_out``)
+///     2D float or complex float array, shape `(-1, n_out)`.
+///
+/// Errors
+/// ------
+/// Raises `ValueError` when the kernel or coordinates are invalid; raises `TypeError`
+/// for unsupported dtypes or invalid kernel objects.
 #[cfg_attr(
     feature = "stub-gen",
     gen_stub_pyfunction(module = "wyvern.interpolate")
@@ -163,43 +166,42 @@ pub fn interpolate_kernel<'py>(
     dispatch_unweighted(py, &plan, y_in, y_out)
 }
 
-/// Interpolate a 2D array with corresponding weights using a Lanczos kernel.
+/// Interpolate a 2D array with corresponding weights using a kernel.
 ///
 /// Parameters
 /// ----------
 /// ``x_in``
-///     1D float64 sorted array with input sample indices
+///     1D float64 sorted array with input sample indices.
 /// ``x_out``
-///     1D float64 sorted array with output sample indices. Must
-///     have uniform spacing.
+///     1D float64 sorted array with output sample indices. Must have uniform spacing.
 /// ``kernel``
-///     [`AnyKernel`] instance.
+///     [`AnyKernel`] instance describing the interpolation kernel.
 /// ``y_in``
-///     2D float or complex float array to be interpolated. Must be
-///     C-contiguous.
+///     2D float or complex float array to be interpolated. Must be C-contiguous.
 /// ``w_in``
-///     2D float array of inverse-variance sample weights. Weights are
-///     propagated by propagating variances and inverting the result.
-///     Must be C-contiguous.
+///     2D float array of inverse-variance sample weights. Weights are propagated by
+///     inverting the propagated variances. Must be C-contiguous.
 /// ``scale``
-///     Optional kernel scaling factor. The inverse of this value is
-///     multiplied with the sample spacing before evaluating the
-///     kernel at each input sample. Default is 1.0.
+///     Optional kernel scaling factor. The inverse of this value is multiplied with the
+///     sample spacing before evaluating the kernel at each input sample. Default is `1.0`.
 /// ``y_out``
-///     Optional 2D float or complex float array to store output.
-///     Must be C-contiguous. If this is None, a new array is
-///     allocated. Default is None.
+///     Optional 2D float or complex float array to store output. Must be C-contiguous.
+///     If `None`, a new array is allocated.
 /// ``w_out``
-///     Optional 2D float array to store propagated weights.
-///     Must be C-contiguous. If this is None, a new array is
-///     allocated. Default is None.
+///     Optional 2D float array to store propagated weights. Must be C-contiguous. If
+///     `None`, a new array is allocated.
 ///
 /// Returns
 /// -------
 /// ``y_out``
-///     2D float or complex float array, shape (-1, ``n_out``)
+///     2D float or complex float array, shape `(-1, n_out)`.
 /// ``w_out``
-///     2D float array, shape (-1, ``n_out``)
+///     2D float array, shape `(-1, n_out)`.
+///
+/// Errors
+/// ------
+/// Raises `ValueError` when the kernel, coordinates, or weighting arrays are invalid;
+/// raises `TypeError` for unsupported dtypes.
 #[cfg_attr(
     feature = "stub-gen",
     gen_stub_pyfunction(module = "wyvern.interpolate")
@@ -229,7 +231,19 @@ pub fn interpolate_kernel_weighted<'py>(
     dispatch_weighted(py, &plan, y_in, w_in, y_out, w_out)
 }
 
-/// Validate and extract input/output samples
+/// Validate and extract the input and output coordinate arrays.
+///
+/// # Parameters
+/// * `py`: The active Python interpreter.
+/// * `x_in`: Input sample coordinate array.
+/// * `x_out`: Output sample coordinate array.
+///
+/// # Returns
+/// A pair of readonly float64 arrays.
+///
+/// # Errors
+/// Returns a `ValueError` when either coordinate array has unsupported dimensions or
+/// dtypes.
 fn validate_extract_samples<'py>(
     py: Python<'py>,
     x_in: &Bound<'py, PyUntypedArray>,

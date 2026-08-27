@@ -1,8 +1,14 @@
 //! Internal helper functions
 
-/// Computes the median of |diff(x)| -- matches np.median(np.abs(np.diff(lsd))).
-/// Requires a mutable scratch Vec to avoid an extra allocation if you
-/// call this repeatedly; sorts in place.
+/// Computes the median absolute sample spacing for a sorted coordinate array.
+///
+/// The result matches `np.median(np.abs(np.diff(x)))` for the input coordinates.
+///
+/// # Parameters
+/// * `x`: Sorted input coordinates from which to compute the sample spacing.
+///
+/// # Returns
+/// The median absolute difference between consecutive values in `x`.
 pub fn median_abs_sample_spacing(x: &[f64]) -> f64 {
     debug_assert!(
         x.len() > 1,
@@ -28,12 +34,19 @@ pub fn median_abs_sample_spacing(x: &[f64]) -> f64 {
     }
 }
 
-/// invert a value, or return zero if the value is zero
+/// Invert a value or return zero when the input is zero.
+///
+/// # Parameters
+/// * `x`: The value to invert.
+///
+/// # Returns
+/// `1.0 / x` when `x` is nonzero, otherwise `0.0`.
 #[inline]
 pub fn invert_no_zero(x: f64) -> f64 {
     if x == 0.0 { 0.0 } else { 1.0 / x }
 }
 
+/// A branchless variant of `invert_no_zero` used for benchmark comparisons.
 #[inline]
 #[allow(dead_code, reason = "testing")]
 pub fn invert_no_zero_branchless(x: f64) -> f64 {

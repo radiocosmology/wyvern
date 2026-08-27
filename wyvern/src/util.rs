@@ -1,4 +1,4 @@
-//! Internal utilities
+//! Internal utilities shared across the interpolation implementation.
 
 macro_rules! assert_unchecked_debug {
     ($cond:expr $(,)?) => {

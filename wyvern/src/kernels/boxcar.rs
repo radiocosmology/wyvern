@@ -1,11 +1,12 @@
 //! Boxcar kernel
 use super::traits::Kernel;
 
+/// A top-hat kernel with a flat response inside its support window.
 #[derive(Debug, Clone)]
 pub struct BoxcarKernel {
-    /// Number of taps
+    /// Number of taps in the kernel support.
     ntaps: usize,
-    /// Width parameter
+    /// Half-width used to define the boxcar support.
     a: f64,
 }
 
