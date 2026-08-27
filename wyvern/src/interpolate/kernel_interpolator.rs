@@ -223,6 +223,8 @@ impl<T: MaybeComplex, const N: usize> Interpolator<T> for FixedWidthKernelInterp
         assert_eq!(self.n_in(), mask_in.len());
         assert_eq!(self.len() * stride, y_out.len());
 
+        let mut masked_coeffs: Vec<f64> = vec![0.0; N];
+
         self.i0
             .iter()
             .zip(self.coeffs.iter())
@@ -244,15 +246,13 @@ impl<T: MaybeComplex, const N: usize> Interpolator<T> for FixedWidthKernelInterp
                 // compute kernel renormalisation to account for masking
                 let mut renorm: f64 = 0.0;
                 // compute masked kernel coefficients
-                let masked_coeffs: Vec<f64> = c0
-                    .iter()
+                c0.iter()
                     .zip(msl.iter())
-                    .map(|(cj, mj)| {
-                        let mcj = cj * mj;
-                        renorm += mcj;
-                        mcj
-                    })
-                    .collect();
+                    .zip(masked_coeffs.iter_mut())
+                    .for_each(|((cj, mj), mcj)| {
+                        *mcj = cj * mj;
+                        renorm += *mcj;
+                    });
 
                 // invert the norm, zeroing the sample if `renorm` is zero
                 let inv_norm = invert_no_zero(renorm);
@@ -305,6 +305,8 @@ impl<T: MaybeComplex, const N: usize> Interpolator<T> for FixedWidthKernelInterp
                 *ms = f64::from(w > 0.0 && w < f64::INFINITY);
             });
 
+        let mut masked_coeffs: Vec<f64> = vec![0.0; N];
+
         self.i0
             .iter()
             .zip(self.coeffs.iter())
@@ -331,17 +333,15 @@ impl<T: MaybeComplex, const N: usize> Interpolator<T> for FixedWidthKernelInterp
                 let mut var_acc: f64 = 0.0;
                 // the masked coefficients are re-used when accumulating
                 // the data below, so avoid re-computing
-                let masked_coeffs: Vec<f64> = c0
-                    .iter()
+                c0.iter()
                     .zip(msl.iter())
                     .zip(vsl.iter())
-                    .map(|((cj, mj), vj)| {
-                        let mcj = cj * mj;
-                        renorm += mcj;
-                        var_acc = (mcj * cj).mul_add(*vj, var_acc);
-                        mcj
-                    })
-                    .collect();
+                    .zip(masked_coeffs.iter_mut())
+                    .for_each(|(((cj, mj), vj), mcj)| {
+                        *mcj = cj * mj;
+                        renorm += *mcj;
+                        var_acc = (*mcj * cj).mul_add(*vj, var_acc);
+                    });
 
                 // invert the norm, zeroing the sample if `renorm` is zero. The
                 // corresponding weight will also be zeroed
