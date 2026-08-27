@@ -73,7 +73,19 @@ macro_rules! try_dispatch_weighted {
     };
 }
 
-/// Type dispatch for unweighted interpolator calls
+/// Dispatch an unweighted interpolation call to the matching concrete dtype.
+///
+/// # Parameters
+/// * `py`: The active Python interpreter.
+/// * `plan`: The interpolation plan that defines the output layout.
+/// * `y_in`: Input data array.
+/// * `y_out`: Optional output array for reuse.
+///
+/// # Returns
+/// The interpolated output array.
+///
+/// # Errors
+/// Returns a Python `TypeError` if `y_in` does not match a supported dtype.
 pub fn dispatch_unweighted<'py, P: IntoInterpolator + InterpolationPlan>(
     py: Python<'py>,
     plan: &P,
@@ -102,7 +114,21 @@ pub fn dispatch_unweighted<'py, P: IntoInterpolator + InterpolationPlan>(
     )))
 }
 
-/// Type dispatch for weighted interpolator calls
+/// Dispatch a weighted interpolation call to the matching concrete dtype pair.
+///
+/// # Parameters
+/// * `py`: The active Python interpreter.
+/// * `plan`: The interpolation plan that defines the output layout.
+/// * `y_in`: Input data array.
+/// * `w_in`: Input inverse-variance weights.
+/// * `y_out`: Optional output array for the interpolated data.
+/// * `w_out`: Optional output array for the propagated weights.
+///
+/// # Returns
+/// A tuple containing the interpolated output and propagated weights.
+///
+/// # Errors
+/// Returns a Python `TypeError` if the data and weight dtypes are unsupported.
 pub fn dispatch_weighted<'py, P: IntoInterpolator + InterpolationPlan>(
     py: Python<'py>,
     plan: &P,

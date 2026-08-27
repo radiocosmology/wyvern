@@ -8,17 +8,17 @@ use crate::kernels::traits::Kernel;
 use crate::types::{FloatLike, MaybeComplex, as_real_slice, as_real_slice_mut};
 use crate::util::assert_unchecked_debug;
 
-/// Precomputed interpolation plan for a lanczos kernel
+/// Precomputed interpolation plan for a fixed-width kernel window.
 pub struct FixedWidthKernelInterpolator<const N: usize> {
-    // index of the first window tap
+    /// Index of the first kernel tap used for each output sample.
     i0: Vec<usize>,
-    // kernel coefficients
+    /// Kernel coefficients computed for each output sample.
     coeffs: Vec<[f64; N]>,
-    // mask for valid samples
+    /// Validity mask for each output sample.
     valid: Vec<f64>,
-    // track the bracket indices for the kernel center
+    /// Bracket indices used to locate the kernel center in the input domain.
     center_a: Vec<usize>,
-    // number of input samples
+    /// Number of input samples managed by the plan.
     n_in: usize,
 }
 
@@ -368,11 +368,13 @@ impl<T: MaybeComplex, const N: usize> Interpolator<T> for FixedWidthKernelInterp
     }
 }
 
-/// Construct a [`KernelInterpolator`] enum for any number of supported
-/// tap widths
+/// Construct a [`KernelInterpolator`] enum for any number of supported tap
+/// widths.
 macro_rules! define_dynamic_kernel_plan {
     ($($n:literal),+ $(,)?) => {
         paste::paste! {
+            /// Runtime-dispatched kernel interpolator that selects the smallest
+            /// fixed-width plan that satisfies the requested tap count.
             pub enum KernelInterpolator {
                 $(
                     [<W $n>](FixedWidthKernelInterpolator<$n>),
@@ -478,8 +480,15 @@ macro_rules! define_dynamic_kernel_plan {
 // valid reason
 define_dynamic_kernel_plan!(4, 8, 16, 32, 64, 128, 256);
 
-/// Kernel ratio scaling. Support is limited to be greater than 1.0,
-/// meaning that support is unchanged when upsampling
+/// Compute the effective tap scaling needed for the requested output spacing.
+///
+/// # Parameters
+/// * `x_in`: Sorted input sample coordinates.
+/// * `x_out`: Sorted output sample coordinates.
+/// * `requested_taps`: The minimum number of kernel taps requested by the caller.
+///
+/// # Returns
+/// A tuple containing the adjusted tap count and the computed filter scale.
 #[inline]
 #[allow(
     clippy::cast_precision_loss,

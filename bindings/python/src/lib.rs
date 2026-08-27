@@ -1,4 +1,4 @@
-//! Python bindings for [`wyvern`] fast algorithms
+//! Python bindings for the [`wyvern`] fast interpolation algorithms.
 mod importutil;
 mod pyinterpolate;
 mod pykernels;

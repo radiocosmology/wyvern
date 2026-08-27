@@ -5,35 +5,67 @@ use rayon::prelude::*;
 
 // ------ Traits ------
 
-/// Implements methods required to construct an interpolation plan
+/// A precomputed interpolation plan describing the relationship between input and
+/// output samples.
 pub trait InterpolationPlan {
-    /// Number of output samples
+    /// Returns the number of output samples produced by the plan.
     fn len(&self) -> usize;
-    /// Number of input samples
+    /// Returns the number of input samples expected by the plan.
     fn n_in(&self) -> usize;
-    /// `true` if `len` is zero
+    /// Returns `true` when the plan produces no output samples.
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
 }
 
-/// Implements methods to convert this to a typed [`Interpolator`]
+/// Converts an interpolation plan into a type-erased interpolator reference.
 pub trait IntoInterpolator {
-    /// extract the interpolator
+    /// Produces a typed interpolator view for the underlying plan.
+    ///
+    /// # Parameters
+    /// * `T`: The numeric scalar type used by the interpolated data.
+    ///
+    /// # Returns
+    /// A reference to a dynamically dispatched interpolator implementation.
     fn as_interpolator<T: MaybeComplex>(&self) -> &dyn Interpolator<T>;
 }
 
-/// Implements interpolation methods for float-like values
+/// A row-wise interpolation operation for real or complex floating-point data.
 pub trait Interpolator<T: MaybeComplex>: Send + Sync + InterpolationPlan {
-    /// Interpolate a single row's data onto output points
+    /// Interpolate a single data row onto the output coordinates.
+    ///
+    /// # Parameters
+    /// * `y_in`: The source data for a single row.
+    /// * `y_out`: Mutable storage for the interpolated values.
+    ///
+    /// # Returns
+    /// This method writes the interpolated row into `y_out` in place.
     fn interp_row(&self, y_in: &[T], y_out: &mut [T]);
 
-    /// Interpolate a single row's data onto output poi ts,
-    /// accounting for an input mask
+    /// Interpolate a single row while honoring an input validity mask.
+    ///
+    /// # Parameters
+    /// * `y_in`: The source data for a single row.
+    /// * `mask_in`: Input validity mask used to zero invalid samples.
+    /// * `y_out`: Mutable storage for the masked interpolation output.
+    ///
+    /// # Returns
+    /// The masked interpolation result is written to `y_out` in place.
     fn interp_row_masked(&self, y_in: &[T], mask_in: &[f64], y_out: &mut [T]);
 
-    /// Interpolate a single row's data onto output points,
-    /// and propagate corresponding inverse-variance weights
+    /// Interpolate a row while propagating inverse-variance weights.
+    ///
+    /// # Parameters
+    /// * `y_in`: The source data for a single row.
+    /// * `weight_in`: Input inverse-variance weights for each sample.
+    /// * `var_scratch`: Scratch space for inverted variances.
+    /// * `mask_scratch`: Scratch space for validity masks.
+    /// * `y_out`: Output data storage.
+    /// * `weight_out`: Output inverse-variance weights.
+    ///
+    /// # Returns
+    /// The interpolated values and propagated weights are written to `y_out` and
+    /// `weight_out` in place.
     fn interp_row_with_variance(
         &self,
         y_in: &[T],
@@ -45,13 +77,12 @@ pub trait Interpolator<T: MaybeComplex>: Send + Sync + InterpolationPlan {
     );
 }
 
-/// Implements a row-parallel interpolator, constructed
-/// from an interpolator
+/// A row-parallel wrapper around an interpolator implementation.
 pub struct ParallelInterpolator<'a, T>
 where
     T: MaybeComplex,
 {
-    /// Internal interpolator
+    /// The underlying interpolator used for each row operation.
     interpolator: &'a dyn Interpolator<T>,
 }
 
@@ -59,13 +90,25 @@ impl<'a, T> ParallelInterpolator<'a, T>
 where
     T: MaybeComplex,
 {
-    /// Make a new parallel interpolator for a given
-    /// number of rows.
+    /// Construct a row-parallel interpolator from an underlying interpolator.
+    ///
+    /// # Parameters
+    /// * `interpolator`: The interpolator implementation to execute in parallel.
+    ///
+    /// # Returns
+    /// A row-parallel wrapper around `interpolator`.
     pub fn with_interpolator(interpolator: &'a dyn Interpolator<T>) -> Self {
         Self { interpolator }
     }
 
     /// Interpolate over the last axis of a real or [`num_complex::Complex`] array.
+    ///
+    /// # Parameters
+    /// * `y_in`: Two-dimensional input array with one row per sample set.
+    /// * `y_out`: Two-dimensional output array with the interpolated values.
+    ///
+    /// # Returns
+    /// The method writes each interpolated row into `y_out` in place.
     ///
     /// # Panics
     /// Panics if the number of columns in `y_in` does not match the expected
@@ -89,7 +132,15 @@ where
     }
 
     /// Interpolate over the last axis of a real or [`Complex`] array with an
-    /// accompanying mask.
+    /// accompanying validity mask.
+    ///
+    /// # Parameters
+    /// * `y_in`: Input samples arranged as rows of real or complex data.
+    /// * `mask_in`: Per-sample validity mask aligned with `y_in`.
+    /// * `y_out`: Mutable output storage for the masked interpolation result.
+    ///
+    /// # Returns
+    /// The method writes the masked interpolation output into `y_out` in place.
     ///
     /// # Panics
     /// Panics if the number of columns in `y_in` does not match the expected
@@ -129,8 +180,18 @@ where
             });
     }
 
-    /// Interpolate over the last axis of a real or [`Complex`] array
-    /// with accompanying weights.
+    /// Interpolate over the last axis of a real or [`Complex`] array with
+    /// accompanying inverse-variance weights.
+    ///
+    /// # Parameters
+    /// * `y_in`: Input samples arranged as rows of real or complex data.
+    /// * `weight_in`: Input inverse-variance weights corresponding to each sample.
+    /// * `y_out`: Mutable output data storage.
+    /// * `weight_out`: Mutable output weight storage.
+    ///
+    /// # Returns
+    /// The interpolated data and propagated weights are written into `y_out` and
+    /// `weight_out` in place.
     ///
     /// # Panics
     /// Panics if the number of columns in `y_in` or `weight_in` do

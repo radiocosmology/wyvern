@@ -1,11 +1,12 @@
 //! Truncated sinc Lanczos kernel
 use super::traits::Kernel;
 
+/// A truncated sinc kernel based on the Lanczos window.
 #[derive(Debug, Clone)]
 pub struct LanczosKernel {
-    /// Number of taps
+    /// Number of taps in the kernel support.
     ntaps: usize,
-    /// Width parameter
+    /// Half-width used to define the sinc window.
     a: f64,
 }
 
@@ -50,7 +51,13 @@ impl Kernel for LanczosKernel {
     }
 }
 
-/// Simple `sinc` implementation
+/// Compute the normalized sinc function used by the Lanczos kernel.
+///
+/// # Parameters
+/// * `x`: The coordinate at which to evaluate the sinc response.
+///
+/// # Returns
+/// The sinc value at `x`, with the zero case handled as `1.0`.
 #[inline]
 fn sinc(x: f64) -> f64 {
     if x == 0.0 {
