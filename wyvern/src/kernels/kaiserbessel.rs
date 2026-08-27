@@ -94,7 +94,11 @@ impl Kernel for KaiserBesselKernel {
         self.ntaps = ntaps;
         let a_new = (ntaps / 2) as f64;
         // scale `beta` accordingly
-        self.beta *= a_new / self.a;
+        self.beta = if self.a == 0.0 {
+            Self::beta_from_width_default(a_new)
+        } else {
+            self.beta * a_new / self.a
+        };
         self.a = a_new;
         self.i0_beta = In(0, self.beta);
     }

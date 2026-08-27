@@ -29,7 +29,7 @@ impl<const N: usize> FixedWidthKernelInterpolator<N> {
     /// ``x_in``: sorted, arbitrary spacing, len >= N
     /// ``x_out``: sorted, uniform spacing, len >= 1
     /// ``kernel``: kernel function
-    /// ``filter_scale``: kernel point separation scaling factor
+    /// ``filter_scale``: kernel point separation downscaling factor
     ///
     /// # Returns
     /// [`FixedWidthKernelInterpolator`]
@@ -389,6 +389,7 @@ macro_rules! define_dynamic_kernel_plan {
                 /// ``x_in``: sorted, arbitrary spacing, len >= N
                 /// ``x_out``: sorted, uniform spacing, len >= 1
                 /// ``kernel``: kernel function
+                /// ``filter_scale``: kernel point separation downscaling factor
                 ///
                 /// # Returns
                 /// [`KernelInterpolator`]
@@ -400,29 +401,43 @@ macro_rules! define_dynamic_kernel_plan {
                     x_in: &[f64],
                     x_out: &[f64],
                     kernel: &mut dyn Kernel,
+                    filter_scale: Option<f64>,
                 ) -> eyre::Result<Self> {
-                    let n_taps = kernel.ntaps();
-                    // compute the required filter scaling
-                    let (required_taps, filter_scale) = compute_scaled_taps(x_in, x_out, n_taps)?;
-                    // rescale the kernel
-                    #[allow(
-                        clippy::cast_precision_loss,
-                        reason = "required_taps will not large enough for precision loss"
-                    )]
-                    kernel.set_ntaps(required_taps);
+                    // let n_taps = kernel.ntaps();
+
+                    let (required_taps, scale) = if let Some(scale) = filter_scale {
+                        // check that the required scale is acceptable
+                        if !scale.is_finite() || scale < 0.0 {
+                            eyre::bail!("filter scale must be finite and positive; got {scale}!");
+                        }
+                        // compute the required filter scaling
+                        #[allow(
+                            clippy::cast_possible_truncation,
+                            clippy::cast_sign_loss,
+                            clippy::cast_precision_loss,
+                            reason = "kernel width will never be large enough to be truncated"
+                        )]
+                        let required_taps = (kernel.ntaps() as f64 * scale).ceil() as usize;
+                        // rescale the kernel
+                        kernel.set_ntaps(required_taps);
+
+                        (required_taps, scale)
+                    } else {
+                        (kernel.ntaps(), 1.0)
+                    };
 
                     $(
                         if required_taps <= $n {
-                            return Ok(Self::[<W $n>](FixedWidthKernelInterpolator::<$n>::build(x_in, x_out, kernel, filter_scale)?));
+                            return Ok(Self::[<W $n>](FixedWidthKernelInterpolator::<$n>::build(x_in, x_out, kernel, scale)?));
                         }
                     )+
 
                     let max_supported = [$($n),+].into_iter().max().unwrap();
                     eyre::bail!(
-                        "required kernel width for requested taps `{n_taps}` and (down)scaling factor \
-                        `{filter_scale}` is `{required_taps}`, which is larger than the largest supported \
+                        "required kernel width for requested taps `{:?}` and (down)scaling factor \
+                        `{scale}` is `{required_taps}`, which is larger than the largest supported \
                         kernel size: `{max_supported}`. Note that when upsampling, the scaling factor is
-                        fixed at `1.0`."
+                        fixed at `1.0`.", kernel.ntaps()
                     );
                 }
             }
@@ -470,6 +485,7 @@ define_dynamic_kernel_plan!(4, 8, 16, 32, 64, 128, 256);
     clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
+    dead_code,
     reason = "precision loss would only occur with unreasonable num samples"
 )]
 fn compute_scaled_taps(
