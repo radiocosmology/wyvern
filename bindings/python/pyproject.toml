@@ -24,6 +24,10 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
 ]
 
+[project.optional-dependencies]
+# dependencies needed to run the pytest suite in `tests/`
+test = ["pytest>=8.0", "numpy>=1.26"]
+
 [tool.maturin]
 ## Cargo options
 python-source = "py_src"
