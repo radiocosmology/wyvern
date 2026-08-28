@@ -17,3 +17,19 @@ macro_rules! assert_unchecked_debug {
 }
 
 pub(crate) use assert_unchecked_debug;
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn true_condition_does_not_panic() {
+        // should be a no-op in both debug and release
+        assert_unchecked_debug!(1 + 1 == 2);
+    }
+
+    #[test]
+    #[should_panic(expected = "assertion failed")]
+    fn false_condition_panics_in_debug_mode() {
+        // debug_assert! is active in test/debug builds, so this should panic
+        assert_unchecked_debug!(1 + 1 == 3);
+    }
+}

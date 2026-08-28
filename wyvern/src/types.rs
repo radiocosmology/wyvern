@@ -96,3 +96,60 @@ where
     let factor = if T::IS_COMPLEX { 2 } else { 1 };
     unsafe { std::slice::from_raw_parts_mut(x.as_mut_ptr().cast::<T::Real>(), x.len() * factor) }
 }
+
+#[cfg(test)]
+#[allow(
+    clippy::float_cmp,
+    clippy::indexing_slicing,
+    clippy::assertions_on_constants,
+    reason = "exact comparisons, direct indexing, and constant assertions are fine in tests"
+)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn from_f64_roundtrips_for_f32_and_f64() {
+        assert_eq!(f32::from_f64(1.5), 1.5_f32);
+        assert_eq!(f64::from_f64(1.5), 1.5_f64);
+    }
+
+    #[test]
+    fn is_complex_flag_matches_scalar_kind() {
+        assert!(!f64::IS_COMPLEX);
+        assert!(!f32::IS_COMPLEX);
+        assert!(<Complex<f64> as MaybeComplex>::IS_COMPLEX);
+        assert!(<Complex<f32> as MaybeComplex>::IS_COMPLEX);
+    }
+
+    #[test]
+    fn real_type_matches_underlying_scalar() {
+        // real types are their own `Real` associated type
+        let _: <f64 as MaybeComplex>::Real = 1.0_f64;
+        let _: <Complex<f64> as MaybeComplex>::Real = 1.0_f64;
+    }
+
+    #[test]
+    fn as_real_slice_reinterprets_real_values_unchanged() {
+        let x: [f64; 3] = [1.0, 2.0, 3.0];
+        let real = as_real_slice(&x);
+        assert_eq!(real, &[1.0, 2.0, 3.0]);
+    }
+
+    #[test]
+    fn as_real_slice_reinterprets_complex_as_interleaved_real_imag() {
+        let x: [Complex<f64>; 2] = [Complex::new(1.0, 2.0), Complex::new(3.0, 4.0)];
+        let real = as_real_slice(&x);
+        assert_eq!(real, &[1.0, 2.0, 3.0, 4.0]);
+    }
+
+    #[test]
+    fn as_real_slice_mut_allows_in_place_modification() {
+        let mut x: [Complex<f64>; 1] = [Complex::new(0.0, 0.0)];
+        {
+            let real = as_real_slice_mut(&mut x);
+            real[0] = 5.0;
+            real[1] = 6.0;
+        }
+        assert_eq!(x[0], Complex::new(5.0, 6.0));
+    }
+}

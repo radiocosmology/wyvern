@@ -56,3 +56,51 @@ pub fn invert_no_zero_branchless(x: f64) -> f64 {
 
     f64::from_bits(inv.to_bits() & bitmask)
 }
+
+#[cfg(test)]
+#[allow(clippy::float_cmp, reason = "exact comparisons are expected in tests")]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn median_abs_sample_spacing_odd_length() {
+        let x = [0.0, 1.0, 3.0, 6.0];
+        // diffs: 1, 2, 3 -> median is 2
+        assert_eq!(median_abs_sample_spacing(&x), 2.0);
+    }
+
+    #[test]
+    fn median_abs_sample_spacing_even_length() {
+        let x = [0.0, 1.0, 2.0, 4.0];
+        // diffs: 1, 1, 2 -> odd number of diffs (3), median is 1
+        assert_eq!(median_abs_sample_spacing(&x), 1.0);
+
+        let x = [0.0, 1.0, 3.0, 4.0, 8.0];
+        // diffs: 1, 2, 1, 4 -> even number (4), median is midpoint of 1 and 2
+        assert_eq!(median_abs_sample_spacing(&x), 1.5);
+    }
+
+    #[test]
+    fn median_abs_sample_spacing_handles_uniform_spacing() {
+        let x = [0.0, 2.0, 4.0, 6.0, 8.0];
+        assert_eq!(median_abs_sample_spacing(&x), 2.0);
+    }
+
+    #[test]
+    fn invert_no_zero_returns_zero_for_zero_input() {
+        assert_eq!(invert_no_zero(0.0), 0.0);
+    }
+
+    #[test]
+    fn invert_no_zero_inverts_nonzero_input() {
+        assert_eq!(invert_no_zero(2.0), 0.5);
+        assert_eq!(invert_no_zero(-4.0), -0.25);
+    }
+
+    #[test]
+    fn invert_no_zero_branchless_matches_invert_no_zero() {
+        for x in [-3.0, 0.0, 0.5, 2.0, 10.0] {
+            assert_eq!(invert_no_zero_branchless(x), invert_no_zero(x));
+        }
+    }
+}

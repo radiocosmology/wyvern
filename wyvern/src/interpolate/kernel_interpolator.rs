@@ -527,3 +527,120 @@ fn compute_scaled_taps(
         filter_scale,
     ))
 }
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::float_cmp,
+    clippy::indexing_slicing,
+    clippy::err_expect,
+    reason = "unwrap/expect, exact comparisons, and direct indexing are acceptable in test code; \
+    `err_expect` would require `Debug` on plan types that intentionally don't implement it"
+)]
+mod tests {
+    use super::*;
+    use crate::kernels::BoxcarKernel;
+
+    #[test]
+    fn build_rejects_too_few_input_samples() {
+        let kernel = BoxcarKernel::build(4);
+        let err = FixedWidthKernelInterpolator::<4>::build(&[0.0, 1.0], &[0.5], &kernel, 1.0)
+            .err()
+            .expect("build should fail with too few samples");
+        assert!(err.to_string().contains("need at least N=4 samples"));
+    }
+
+    #[test]
+    fn build_rejects_empty_output() {
+        let x_in = [0.0, 1.0, 2.0, 3.0];
+        let kernel = BoxcarKernel::build(4);
+        let err = FixedWidthKernelInterpolator::<4>::build(&x_in, &[], &kernel, 1.0)
+            .err()
+            .expect("build should fail with empty output");
+        assert!(err.to_string().contains("need at least 1 output sample"));
+    }
+
+    #[test]
+    fn build_rejects_kernel_wider_than_window() {
+        let x_in = [0.0, 1.0, 2.0, 3.0];
+        let kernel = BoxcarKernel::build(8);
+        let err =
+            FixedWidthKernelInterpolator::<4>::build(&x_in, &[1.0], &kernel, 1.0)
+                .err()
+                .expect("build should fail when kernel exceeds window");
+        assert!(err.to_string().contains("greater than available window size"));
+    }
+
+    #[test]
+    fn interp_row_reproduces_constant_signal() {
+        let x_in = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
+        let x_out = [2.0, 2.5, 3.0];
+        let kernel = BoxcarKernel::build(4);
+        let plan = FixedWidthKernelInterpolator::<4>::build(&x_in, &x_out, &kernel, 1.0).unwrap();
+
+        assert_eq!(plan.n_in(), 6);
+        assert_eq!(plan.len(), 3);
+
+        let y_in = [3.0_f64; 6];
+        let mut y_out = [0.0_f64; 3];
+        Interpolator::<f64>::interp_row(&plan, &y_in, &mut y_out);
+
+        // constant input should interpolate to the same constant, since
+        // coefficients are renormalized to sum to 1
+        for value in y_out {
+            assert!((value - 3.0).abs() < 1e-9);
+        }
+    }
+
+    #[test]
+    fn kernel_interpolator_dispatches_to_smallest_matching_width() {
+        let x_in: Vec<f64> = (0..10).map(f64::from).collect();
+        let x_out = vec![4.5];
+        let mut kernel = BoxcarKernel::build(4);
+        let plan = KernelInterpolator::build(&x_in, &x_out, &mut kernel, None).unwrap();
+
+        assert_eq!(plan.n_in(), 10);
+        assert_eq!(plan.len(), 1);
+        assert!(matches!(plan, KernelInterpolator::W4(_)));
+    }
+
+    #[test]
+    fn kernel_interpolator_errors_when_taps_exceed_max_supported() {
+        let x_in: Vec<f64> = (0..300).map(f64::from).collect();
+        let x_out = vec![150.5];
+        let mut kernel = BoxcarKernel::build(300);
+        let err = KernelInterpolator::build(&x_in, &x_out, &mut kernel, None)
+            .err()
+            .expect("build should fail when taps exceed max supported width");
+        assert!(err.to_string().contains("larger than the largest supported"));
+    }
+
+    #[test]
+    fn compute_scaled_taps_upsampling_keeps_scale_at_one() {
+        let x_in = [0.0, 1.0, 2.0, 3.0];
+        let x_out = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0];
+        let (taps, scale) = compute_scaled_taps(&x_in, &x_out, 4).unwrap();
+        assert_eq!(scale, 1.0);
+        assert_eq!(taps, 4);
+    }
+
+    #[test]
+    fn compute_scaled_taps_downsampling_scales_up() {
+        let x_in = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0];
+        let x_out = [0.0, 7.0];
+        let (taps, scale) = compute_scaled_taps(&x_in, &x_out, 4).unwrap();
+        assert!(scale > 1.0);
+        assert!(taps >= 4);
+    }
+
+    #[test]
+    fn compute_scaled_taps_rejects_too_few_samples() {
+        let x_in = [0.0, 1.0];
+        let x_out = [0.5];
+        let err = compute_scaled_taps(&x_in, &x_out, 4)
+            .err()
+            .expect("compute_scaled_taps should fail with too few samples");
+        assert!(err.to_string().contains("need at least N=4 samples"));
+    }
+}
