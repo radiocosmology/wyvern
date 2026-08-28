@@ -244,3 +244,75 @@ where
             });
     }
 }
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::float_cmp,
+    clippy::indexing_slicing,
+    reason = "unwrap/expect, exact comparisons, and direct indexing are acceptable in test code"
+)]
+mod tests {
+    use super::*;
+    use crate::interpolate::linear_interpolator::LinearInterpolator;
+    use ndarray::Array2;
+
+    #[test]
+    fn interpolate_applies_row_wise_linear_interpolation() {
+        let x_in = [0.0, 1.0, 2.0];
+        let x_out = [0.5, 1.5];
+        let plan = LinearInterpolator::build(&x_in, &x_out).unwrap();
+        let interpolator: &dyn Interpolator<f64> = &plan;
+        let parallel = ParallelInterpolator::with_interpolator(interpolator);
+
+        let y_in = Array2::from_shape_vec((2, 3), vec![0.0, 1.0, 2.0, 0.0, 2.0, 4.0]).unwrap();
+        let mut y_out = Array2::<f64>::zeros((2, 2));
+
+        parallel.interpolate(&y_in.view(), y_out.view_mut());
+
+        assert_eq!(y_out.row(0).to_vec(), vec![0.5, 1.5]);
+        assert_eq!(y_out.row(1).to_vec(), vec![1.0, 3.0]);
+    }
+
+    #[test]
+    fn interpolate_masked_zeros_rows_touching_invalid_samples() {
+        let x_in = [0.0, 1.0, 2.0];
+        let x_out = [0.5, 1.5];
+        let plan = LinearInterpolator::build(&x_in, &x_out).unwrap();
+        let interpolator: &dyn Interpolator<f64> = &plan;
+        let parallel = ParallelInterpolator::with_interpolator(interpolator);
+
+        let y_in = Array2::from_shape_vec((1, 3), vec![0.0, 1.0, 2.0]).unwrap();
+        let mask_in = Array2::from_shape_vec((1, 3), vec![1.0, 0.0, 1.0]).unwrap();
+        let mut y_out = Array2::<f64>::zeros((1, 2));
+
+        parallel.interpolate_masked(&y_in.view(), &mask_in.view(), y_out.view_mut());
+
+        assert_eq!(y_out.row(0).to_vec(), vec![0.0, 0.0]);
+    }
+
+    #[test]
+    fn interpolate_weighted_propagates_positive_weights() {
+        let x_in = [0.0, 1.0, 2.0];
+        let x_out = [0.5, 1.5];
+        let plan = LinearInterpolator::build(&x_in, &x_out).unwrap();
+        let interpolator: &dyn Interpolator<f64> = &plan;
+        let parallel = ParallelInterpolator::with_interpolator(interpolator);
+
+        let y_in = Array2::from_shape_vec((1, 3), vec![0.0, 2.0, 4.0]).unwrap();
+        let w_in = Array2::from_shape_vec((1, 3), vec![1.0, 1.0, 1.0]).unwrap();
+        let mut y_out = Array2::<f64>::zeros((1, 2));
+        let mut w_out = Array2::<f64>::zeros((1, 2));
+
+        parallel.interpolate_weighted(
+            &y_in.view(),
+            &w_in.view(),
+            y_out.view_mut(),
+            w_out.view_mut(),
+        );
+
+        assert_eq!(y_out.row(0).to_vec(), vec![1.0, 3.0]);
+        assert!(w_out.iter().all(|&w| w > 0.0));
+    }
+}

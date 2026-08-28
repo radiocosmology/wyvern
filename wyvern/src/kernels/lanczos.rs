@@ -67,3 +67,49 @@ fn sinc(x: f64) -> f64 {
         px.sin() / px
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::float_cmp, reason = "exact comparisons are expected in tests")]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sinc_at_zero_is_one() {
+        assert_eq!(sinc(0.0), 1.0);
+    }
+
+    #[test]
+    fn sinc_at_integer_is_zero() {
+        assert!(sinc(1.0).abs() < 1e-12);
+        assert!(sinc(2.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn build_sets_ntaps_and_half_width() {
+        let k = LanczosKernel::build(6);
+        assert_eq!(k.ntaps(), 6);
+        assert_eq!(k.half_width(), 3.0);
+    }
+
+    #[test]
+    fn evaluate_is_zero_at_and_beyond_half_width() {
+        let k = LanczosKernel::build(6);
+        assert_eq!(k.evaluate(3.0), 0.0);
+        assert_eq!(k.evaluate(-3.0), 0.0);
+        assert_eq!(k.evaluate(5.0), 0.0);
+    }
+
+    #[test]
+    fn evaluate_is_one_at_center() {
+        let k = LanczosKernel::build(6);
+        assert_eq!(k.evaluate(0.0), 1.0);
+    }
+
+    #[test]
+    fn set_ntaps_rescales_half_width() {
+        let mut k = LanczosKernel::build(6);
+        k.set_ntaps(10);
+        assert_eq!(k.ntaps(), 10);
+        assert_eq!(k.half_width(), 5.0);
+    }
+}

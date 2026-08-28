@@ -109,3 +109,53 @@ impl Kernel for KaiserBesselKernel {
         self.i0_beta = In(0, self.beta);
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::float_cmp, reason = "exact comparisons are expected in tests")]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_sets_ntaps_half_width_and_default_beta() {
+        let k = KaiserBesselKernel::build(8);
+        assert_eq!(k.ntaps(), 8);
+        assert_eq!(k.half_width(), 4.0);
+        assert_eq!(k.beta(), std::f64::consts::PI * 4.0);
+    }
+
+    #[test]
+    fn evaluate_is_one_at_center_and_zero_outside_support() {
+        let k = KaiserBesselKernel::build(8);
+        assert!((k.evaluate(0.0) - 1.0).abs() < 1e-9);
+        assert_eq!(k.evaluate(4.1), 0.0);
+        assert_eq!(k.evaluate(-4.1), 0.0);
+    }
+
+    #[test]
+    fn set_beta_updates_cached_bessel_value() {
+        let mut k = KaiserBesselKernel::build(8);
+        k.set_beta(2.0);
+        assert_eq!(k.beta(), 2.0);
+        // evaluating at the center should still normalize to ~1.0
+        assert!((k.evaluate(0.0) - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn set_beta_default_restores_width_derived_beta() {
+        let mut k = KaiserBesselKernel::build(8);
+        k.set_beta(2.0);
+        k.set_beta_default();
+        assert_eq!(k.beta(), std::f64::consts::PI * k.half_width());
+    }
+
+    #[test]
+    fn set_ntaps_rescales_beta_proportionally() {
+        let mut k = KaiserBesselKernel::build(8);
+        let original_ratio = k.beta() / k.half_width();
+        k.set_ntaps(16);
+        assert_eq!(k.ntaps(), 16);
+        assert_eq!(k.half_width(), 8.0);
+        // beta scales linearly with half-width when ntaps changes
+        assert!((k.beta() / k.half_width() - original_ratio).abs() < 1e-9);
+    }
+}

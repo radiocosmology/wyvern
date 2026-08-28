@@ -243,3 +243,98 @@ impl<T: MaybeComplex> Interpolator<T> for LinearInterpolator {
             });
     }
 }
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::float_cmp,
+    clippy::indexing_slicing,
+    reason = "unwrap/expect, exact comparisons, and direct indexing are acceptable in test code"
+)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_rejects_too_few_input_samples() {
+        let err = LinearInterpolator::build(&[1.0], &[1.0])
+            .err()
+            .expect("build should fail with too few input samples");
+        assert!(err.to_string().contains("at least 2 input samples"));
+    }
+
+    #[test]
+    fn build_rejects_empty_output_samples() {
+        let err = LinearInterpolator::build(&[0.0, 1.0], &[])
+            .err()
+            .expect("build should fail with empty output samples");
+        assert!(err.to_string().contains("at least 1 output sample"));
+    }
+
+    #[test]
+    fn build_rejects_unsorted_or_repeated_inputs() {
+        let err = LinearInterpolator::build(&[1.0, 1.0], &[1.0])
+            .err()
+            .expect("build should fail with repeated input samples");
+        assert!(err.to_string().contains("unsorted or repeated"));
+    }
+
+    #[test]
+    fn interp_row_reproduces_linear_ramp() {
+        let x_in = [0.0, 1.0, 2.0, 3.0];
+        let x_out = [0.5, 1.5, 2.5];
+        let plan = LinearInterpolator::build(&x_in, &x_out).unwrap();
+
+        assert_eq!(plan.n_in(), 4);
+        assert_eq!(plan.len(), 3);
+        assert!(!plan.is_empty());
+
+        let y_in = [0.0_f64, 1.0, 2.0, 3.0];
+        let mut y_out = [0.0_f64; 3];
+        Interpolator::<f64>::interp_row(&plan, &y_in, &mut y_out);
+
+        assert_eq!(y_out, [0.5, 1.5, 2.5]);
+    }
+
+    #[test]
+    fn interp_row_masked_zeros_invalid_samples() {
+        let x_in = [0.0, 1.0, 2.0, 3.0];
+        let x_out = [0.5, 1.5];
+        let plan = LinearInterpolator::build(&x_in, &x_out).unwrap();
+
+        let y_in = [0.0_f64, 1.0, 2.0, 3.0];
+        // mark second input sample invalid
+        let mask_in = [1.0, 0.0, 1.0, 1.0];
+        let mut y_out = [0.0_f64; 2];
+        plan.interp_row_masked(&y_in, &mask_in, &mut y_out);
+
+        // both outputs bracket the masked sample, so both should be zeroed
+        assert_eq!(y_out, [0.0, 0.0]);
+    }
+
+    #[test]
+    fn interp_row_with_variance_propagates_weights() {
+        let x_in = [0.0, 1.0, 2.0];
+        let x_out = [0.5];
+        let plan = LinearInterpolator::build(&x_in, &x_out).unwrap();
+
+        let y_in = [0.0_f64, 2.0, 4.0];
+        let weight_in = [1.0_f64, 1.0, 1.0];
+        let mut var_scratch = [0.0_f64; 3];
+        let mut mask_scratch = [0.0_f64; 3];
+        let mut y_out = [0.0_f64; 1];
+        let mut weight_out = [0.0_f64; 1];
+
+        plan.interp_row_with_variance(
+            &y_in,
+            &weight_in,
+            &mut var_scratch,
+            &mut mask_scratch,
+            &mut y_out,
+            &mut weight_out,
+        );
+
+        assert_eq!(y_out, [1.0]);
+        assert!(weight_out[0] > 0.0);
+    }
+}
