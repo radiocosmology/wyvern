@@ -565,11 +565,13 @@ mod tests {
     fn build_rejects_kernel_wider_than_window() {
         let x_in = [0.0, 1.0, 2.0, 3.0];
         let kernel = BoxcarKernel::build(8);
-        let err =
-            FixedWidthKernelInterpolator::<4>::build(&x_in, &[1.0], &kernel, 1.0)
-                .err()
-                .expect("build should fail when kernel exceeds window");
-        assert!(err.to_string().contains("greater than available window size"));
+        let err = FixedWidthKernelInterpolator::<4>::build(&x_in, &[1.0], &kernel, 1.0)
+            .err()
+            .expect("build should fail when kernel exceeds window");
+        assert!(
+            err.to_string()
+                .contains("greater than available window size")
+        );
     }
 
     #[test]
@@ -613,7 +615,10 @@ mod tests {
         let err = KernelInterpolator::build(&x_in, &x_out, &mut kernel, None)
             .err()
             .expect("build should fail when taps exceed max supported width");
-        assert!(err.to_string().contains("larger than the largest supported"));
+        assert!(
+            err.to_string()
+                .contains("larger than the largest supported")
+        );
     }
 
     #[test]

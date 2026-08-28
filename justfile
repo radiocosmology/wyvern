@@ -58,6 +58,11 @@ develop:
 release:
     cd {{bindings_dir}} && maturin develop --release
 
+# install python test dependencies and run the pytest suite
+test-python: develop
+    pip install pytest numpy
+    cd {{bindings_dir}} && python -m pytest tests
+
 # --- Aggregate ---
 
 # run all CI checks

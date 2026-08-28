@@ -61,3 +61,22 @@ jobs:
       - name: Run unit tests in release
         run: cargo nextest run --workspace --profile ci --release --no-tests="warn"
 
+  pytest:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install python test dependencies
+        run: pip install maturin pytest numpy
+      - name: Build and install python bindings
+        run: cd bindings/python && maturin develop
+      - name: Run pytest
+        run: cd bindings/python && pytest tests
