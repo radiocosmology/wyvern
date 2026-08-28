@@ -131,7 +131,7 @@ where
             });
     }
 
-    /// Interpolate over the last axis of a real or [`Complex`] array with an
+    /// Interpolate over the last axis of a real or [`num_complex::Complex`] array with an
     /// accompanying validity mask.
     ///
     /// # Parameters
@@ -180,7 +180,7 @@ where
             });
     }
 
-    /// Interpolate over the last axis of a real or [`Complex`] array with
+    /// Interpolate over the last axis of a real or [`num_complex::Complex`] array with
     /// accompanying inverse-variance weights.
     ///
     /// # Parameters

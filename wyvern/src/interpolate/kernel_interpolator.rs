@@ -26,10 +26,10 @@ impl<const N: usize> FixedWidthKernelInterpolator<N> {
     /// Build an interpolation plan for a kernel-based interpolator.
     ///
     /// # Parameters
-    /// ``x_in``: sorted, arbitrary spacing, len >= N
-    /// ``x_out``: sorted, uniform spacing, len >= 1
-    /// ``kernel``: kernel function
-    /// ``filter_scale``: kernel point separation downscaling factor
+    /// * ``x_in``: sorted, arbitrary spacing, len >= N
+    /// * ``x_out``: sorted, uniform spacing, len >= 1
+    /// * ``kernel``: kernel function
+    /// * ``filter_scale``: kernel point separation downscaling factor
     ///
     /// # Returns
     /// [`FixedWidthKernelInterpolator`]
@@ -388,10 +388,10 @@ macro_rules! define_dynamic_kernel_plan {
                 /// number of taps, after scaling to account for downsampling.
                 ///
                 /// # Parameters
-                /// ``x_in``: sorted, arbitrary spacing, len >= N
-                /// ``x_out``: sorted, uniform spacing, len >= 1
-                /// ``kernel``: kernel function
-                /// ``filter_scale``: kernel point separation downscaling factor
+                /// * ``x_in``: sorted, arbitrary spacing, len >= N
+                /// * ``x_out``: sorted, uniform spacing, len >= 1
+                /// * ``kernel``: kernel function
+                /// * ``filter_scale``: kernel point separation downscaling factor
                 ///
                 /// # Returns
                 /// [`KernelInterpolator`]

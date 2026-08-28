@@ -24,8 +24,8 @@ impl LinearInterpolator {
     /// Build an interpolation plan for a linear interpolator.
     ///
     /// # Parameters
-    /// ``x_in``: sorted, arbitrary spacing, len >= 2
-    /// ``x_out``: sorted, uniform spacing, len >= 1
+    /// * ``x_in``: sorted, arbitrary spacing, len >= 2
+    /// * ``x_out``: sorted, uniform spacing, len >= 1
     ///
     /// # Returns
     /// [`LinearInterpolator`]
