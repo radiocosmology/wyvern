@@ -52,9 +52,6 @@ check-stubs: gen-stubs
 # --- Python ---
 
 # install python bindings with dev build
-setup:
-    uv sync --directory {{bindings_dir}}
-
 dev-setup:
     uv sync --directory {{bindings_dir}} --extra test
 
@@ -62,8 +59,8 @@ develop: dev-setup
     uv run --directory {{bindings_dir}} maturin develop --uv
 
 # install python bindings with release build
-release: setup
-    uv run --directory {{bindings_dir}} maturin develop --release --uv
+release:
+    uv run --active --directory {{bindings_dir}} maturin develop --release
 
 # install python test dependencies and run the pytest suite
 test-python: develop
@@ -75,6 +72,6 @@ test-python: develop
 ci: clippy test test-python doc check-stubs
 
 # format all rust and python files
-fmt: setup
+fmt:
     cargo fmt --all
     uvx --directory {{bindings_dir}} ruff format
