@@ -24,10 +24,6 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
 ]
 
-[project.optional-dependencies]
-# dependencies needed to run the pytest suite in `tests/`
-test = ["pytest>=8.0", "numpy>=1.26"]
-
 [tool.maturin]
 ## Cargo options
 python-source = "py_src"
@@ -50,3 +46,11 @@ compatibility = "pypi"
 auditwheel = "repair"
 # strip library for minimum file size
 strip = true
+
+[dependency-groups]
+dev = [
+    "mkdocstrings-python>=2.0.7",
+    "zensical>=0.0.57",
+]
+# dependencies needed to run the pytest suite in `tests/`
+test = ["pytest>=8.0", "numpy>=1.26"]

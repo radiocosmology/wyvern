@@ -21,9 +21,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
         with:
-          python-version: "3.14"
+          python-version: 3.14
       - uses: dtolnay/rust-toolchain@stable
       # - uses: Swatinem/rust-cache@v2
       #   with:
@@ -32,14 +32,12 @@ jobs:
       #     # prevent cross-os issues
       #     prefix-key: "${{ runner.os }}-rust"
       - uses: extractions/setup-just@v4
-      - name: Build and fix docs
-        run: just doc-hosted
-      - name: Update permissions
-        run: chmod -c -R +rX "target/doc/"
+      - name: Build combined docs
+        run: just doc-site
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./target/doc
+          path: ./bindings/python/site
 
   deploy:
     needs: build
@@ -52,4 +50,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-

@@ -1,0 +1,151 @@
+[project]
+site_name = "wyvern"
+site_url = "https://ljgray.github.io/wyvern_py/"
+# site_description = "Your project description"
+site_author = "Liam Gray"
+
+docs_dir = "docs"
+site_dir = "site"
+
+# copyright = "Copyright &copy; 2026 Your name"
+
+repo_url = "https://github.com/ljgray/wyvern"
+repo_name = "ljgray/wyvern"
+# edit_uri = "edit/main/docs/"
+
+nav = [
+  { "Home" = "index.md" },
+  { "Python API" = [
+    { "Overview" = "api/index.md" },
+    { "Interpolate" = "api/interpolate.md" },
+    { "Kernels" = "api/kernels.md" },
+  ] },
+  { "Rust API" = "rust-api.md" },
+]
+
+# extra_css = ["stylesheets/extra.css"]
+# extra_javascript = ["javascripts/extra.js"]
+
+[project.theme]
+# variant = "classic"
+# custom_dir = "overrides"
+# favicon = "images/favicon.png"
+name = "material"
+language = "en"
+direction = "ltr"
+
+[project.theme.font]
+text = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif"
+code = "ui-monospace, 'SFMono-Regular', 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+primary = "blue"
+accent = "indigo"
+toggle.icon = "material/brightness-7"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+primary = "blue"
+accent = "indigo"
+toggle.icon = "material/brightness-4"
+toggle.name = "Switch to light mode"
+
+project.theme.features = [
+  # "announce.dismiss",
+  # "content.action.edit",
+  "content.action.view",
+  "content.code.annotate",
+  "content.code.copy",
+  "content.code.select",
+  # "content.footnote.tooltips",
+  # "content.tabs.link",
+  # "content.tooltips",
+  # "header.autohide",
+  "navigation.expand",
+  # "navigation.footer",
+  # "navigation.indexes",
+  # "navigation.instant",
+  # "navigation.instant.prefetch",
+  # "navigation.instant.progress",
+  # "navigation.path",
+  # "navigation.prune",
+  "navigation.sections",
+  "navigation.tabs",
+  "navigation.tabs.sticky",
+  # "navigation.top",
+  "navigation.tracking",
+  "search.highlight",
+  "search.share",
+  "search.suggest",
+  "toc.follow",
+  "toc.integrate",
+]
+
+# logo = "assets/logo.png"
+
+# [project.theme.icon]
+# logo = "lucide/smile"
+
+# [project.theme.font]
+# text = "Inter"
+# code = "Jetbrains Mono"
+
+
+# [[project.extra.social]]
+# icon = "fontawesome/brands/github"
+# link = "https://github.com/user/repo"
+
+# [[project.extra.social]]
+# icon = "fontawesome/brands/mastodon"
+# link = "https://fosstodon.org/@user"
+
+# [project.markdown_extensions]
+# abbr = {}
+# admonition = {}
+# attr_list = {}
+# def_list = {}
+# footnotes = {}
+# md_in_html = {}
+# toc.permalink = true
+# pymdownx.arithmatex.generic = true
+# pymdownx.betterem = {}
+# pymdownx.caret = {}
+# pymdownx.details = {}
+# pymdownx.emoji.emoji_generator = "zensical.extensions.emoji.to_svg"
+# pymdownx.emoji.emoji_index = "zensical.extensions.emoji.twemoji"
+# pymdownx.highlight.anchor_linenums = true
+# pymdownx.highlight.line_spans = "__span"
+# pymdownx.highlight.pygments_lang_class = true
+# pymdownx.inlinehilite = {}
+# pymdownx.keys = {}
+# pymdownx.magiclink = {}
+# pymdownx.mark = {}
+# pymdownx.smartsymbols = {}
+# # pymdownx.snippets.base_path = "includes"
+# pymdownx.superfences.custom_fences = [
+#   { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
+# ]
+# pymdownx.tabbed.alternate_style = true
+# pymdownx.tabbed.combine_header_slug = true
+# pymdownx.tasklist.custom_checkbox = true
+# pymdownx.tilde = {}
+
+# Python API extractor
+[project.plugins.mkdocstrings.handlers.python]
+paths = ["py_src/wyvern"]
+inventories = ["https://docs.python.org/3/objects.inv"]
+
+[project.plugins.mkdocstrings.handlers.python.options]
+docstring_style = "numpy"
+show_source = false             # Keep false since source is compiled Rust
+show_root_heading = true
+show_root_toc_entry = true
+merge_init_into_class = true
+show_signature_annotations = false
+show_signature = true
+# show_type_annotations = true
+inherited_members = true
