@@ -1,0 +1,32 @@
+# Exclude some standard locations
+exclude = [
+    ".git",
+    ".github",
+    "build",
+    "doc",
+    "tests",
+]
+
+target-version = "py312"
+
+[lint]
+# Enable:
+# pycodestyle ('E')
+# isort ('I')
+# pyupgrade ('UP')
+# numpy-specific ('NPY')
+# ruff-specific ('RUF')
+# flake8-blind-except ('BLE')
+# flake8-comprehensions ('C4')
+# flake8-return ('RET')
+select = ["E", "I", "UP", "NPY", "RUF", "BLE", "C4", "RET"]
+
+[format]
+docstring-code-format = true
+docstring-code-line-length = "dynamic"
+indent-style = "space"
+line-ending = "auto"
+preview = false
+quote-style = "double"
+skip-magic-trailing-comma = false
+

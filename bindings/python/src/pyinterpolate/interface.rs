@@ -1,4 +1,5 @@
 //! Interface for interpolation routines
+#![allow(clippy::doc_markdown, reason = "require python-style docstrings")]
 use numpy::{PyReadonlyArray1, PyUntypedArray, dtype};
 use pyo3::prelude::*;
 #[cfg(feature = "stub-gen")]
@@ -14,19 +15,19 @@ use crate::pyutils::{require_dtype, require_ndim};
 ///
 /// Parameters
 /// ----------
-/// ``x_in``
+/// x_in
 ///     1D float64 sorted array with input sample indices.
-/// ``x_out``
+/// x_out
 ///     1D float64 sorted array with output sample indices. Must have uniform spacing.
-/// ``y_in``
+/// y_in
 ///     2D float or complex float array to be interpolated. Must be C-contiguous.
-/// ``y_out``
+/// y_out
 ///     Optional 2D float or complex float array to store output. Must be C-contiguous.
 ///     If `None`, a new array is allocated.
 ///
 /// Returns
 /// -------
-/// ``y_out``
+/// y_out
 ///     2D float or complex float array, shape `(-1, n_out)`.
 ///
 /// Errors
@@ -60,27 +61,27 @@ pub fn interpolate_linear<'py>(
 ///
 /// Parameters
 /// ----------
-/// ``x_in``
+/// x_in
 ///     1D float64 sorted array with input sample indices.
-/// ``x_out``
+/// x_out
 ///     1D float64 sorted array with output sample indices. Must have uniform spacing.
-/// ``y_in``
+/// y_in
 ///     2D float or complex float array to be interpolated. Must be C-contiguous.
-/// ``w_in``
+/// w_in
 ///     2D float array of inverse-variance sample weights. Weights are propagated by
 ///     propagating variances and inverting the result. Must be C-contiguous.
-/// ``y_out``
+/// y_out
 ///     Optional 2D float or complex float array to store output. Must be C-contiguous.
 ///     If `None`, a new array is allocated.
-/// ``w_out``
+/// w_out
 ///     Optional 2D float array to store propagated weights. Must be C-contiguous. If
 ///     `None`, a new array is allocated.
 ///
 /// Returns
 /// -------
-/// ``y_out``
+/// y_out
 ///     2D float or complex float array, shape `(-1, n_out)`.
-/// ``w_out``
+/// w_out
 ///     2D float array, shape `(-1, n_out)`.
 ///
 /// Errors
@@ -116,24 +117,24 @@ pub fn interpolate_linear_weighted<'py>(
 ///
 /// Parameters
 /// ----------
-/// ``x_in``
+/// x_in
 ///     1D float64 sorted array with input sample indices.
-/// ``x_out``
+/// x_out
 ///     1D float64 sorted array with output sample indices. Must have uniform spacing.
-/// ``kernel``
+/// kernel
 ///     [`AnyKernel`] instance describing the interpolation kernel.
-/// ``y_in``
+/// y_in
 ///     2D float or complex float array to be interpolated. Must be C-contiguous.
-/// ``scale``
+/// scale
 ///     Optional kernel scaling factor. The inverse is multiplied with the sample spacing
 ///     before evaluating the kernel at each input sample. Default is `1.0`.
-/// ``y_out``
+/// y_out
 ///     Optional 2D float or complex float array to store output. Must be C-contiguous.
 ///     If `None`, a new array is allocated.
 ///
 /// Returns
 /// -------
-/// ``y_out``
+/// y_out
 ///     2D float or complex float array, shape `(-1, n_out)`.
 ///
 /// Errors
@@ -170,32 +171,32 @@ pub fn interpolate_kernel<'py>(
 ///
 /// Parameters
 /// ----------
-/// ``x_in``
+/// x_in
 ///     1D float64 sorted array with input sample indices.
-/// ``x_out``
+/// x_out
 ///     1D float64 sorted array with output sample indices. Must have uniform spacing.
-/// ``kernel``
+/// kernel
 ///     [`AnyKernel`] instance describing the interpolation kernel.
-/// ``y_in``
+/// y_in
 ///     2D float or complex float array to be interpolated. Must be C-contiguous.
-/// ``w_in``
+/// w_in
 ///     2D float array of inverse-variance sample weights. Weights are propagated by
 ///     inverting the propagated variances. Must be C-contiguous.
-/// ``scale``
+/// scale
 ///     Optional kernel scaling factor. The inverse of this value is multiplied with the
 ///     sample spacing before evaluating the kernel at each input sample. Default is `1.0`.
-/// ``y_out``
+/// y_out
 ///     Optional 2D float or complex float array to store output. Must be C-contiguous.
 ///     If `None`, a new array is allocated.
-/// ``w_out``
+/// w_out
 ///     Optional 2D float array to store propagated weights. Must be C-contiguous. If
 ///     `None`, a new array is allocated.
 ///
 /// Returns
 /// -------
-/// ``y_out``
+/// y_out
 ///     2D float or complex float array, shape `(-1, n_out)`.
-/// ``w_out``
+/// w_out
 ///     2D float array, shape `(-1, n_out)`.
 ///
 /// Errors
