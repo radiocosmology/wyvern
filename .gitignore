@@ -1,5 +1,8 @@
 # Rust
-target
+target/
+
+# Generated docs
+site/
 
 # Python compiled/cache
 __pycache__/
@@ -10,3 +13,6 @@ __pycache__/
 *.so
 *.pyd
 *.dylib
+
+# macos-specific
+*.DS_Store
