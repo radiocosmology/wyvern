@@ -7,6 +7,7 @@ py_src := bindings_dir / "py_src"
 default:
     just --list
 
+
 # --- Cargo ---
 
 # lint the entire workspace with clippy
@@ -40,8 +41,8 @@ doc-hosted: doc
 # generate python stubs
 gen-stubs:
     cargo run --bin stub_gen --manifest-path {{bindings_dir}}/Cargo.toml --features stub-gen
-    uvx ruff check --fix
-    uvx ruff format
+    uvx --directory {{bindings_dir}} ruff check --fix
+    uvx --directory {{bindings_dir}} ruff format
 
 # generate and check that python stubs are up to date
 check-stubs: gen-stubs
@@ -51,24 +52,29 @@ check-stubs: gen-stubs
 # --- Python ---
 
 # install python bindings with dev build
-develop:
-    cd {{bindings_dir}} && maturin develop
+setup:
+    uv sync --directory {{bindings_dir}}
+
+dev-setup:
+    uv sync --directory {{bindings_dir}} --extra test
+
+develop: dev-setup
+    uv run --directory {{bindings_dir}} maturin develop --uv
 
 # install python bindings with release build
-release:
-    cd {{bindings_dir}} && maturin develop --release
+release: setup
+    uv run --directory {{bindings_dir}} maturin develop --release --uv
 
 # install python test dependencies and run the pytest suite
 test-python: develop
-    pip install pytest numpy
-    cd {{bindings_dir}} && python -m pytest tests
+    uv run --directory {{bindings_dir}} pytest tests
 
 # --- Aggregate ---
 
 # run all CI checks
-ci: clippy test doc check-stubs
+ci: clippy test test-python doc check-stubs
 
 # format all rust and python files
-fmt:
+fmt: setup
     cargo fmt --all
-    uvx ruff format
+    uvx --directory {{bindings_dir}} ruff format

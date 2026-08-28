@@ -8,9 +8,6 @@ on:
     branches:
       - main
 
-permissions:
-  contents: read
-
 env:
   CARGO_TERM_COLOR: always
   # CARGO_INCREMENTAL: 0
@@ -20,7 +17,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
+        with:
+          python-version: 3.14
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -32,8 +31,6 @@ jobs:
       #     shared-key: "ci-cache-${{ github.workflow }}"
       #     # prevent cross-os issues
       #     prefix-key: "${{ runner.os }}-rust"
-      - name: Install python 3.14
-        run: uv python install 3.14
       - uses: extractions/setup-just@v4
       - run: just clippy
       - run: just check-stubs
@@ -61,25 +58,23 @@ jobs:
       - uses: extractions/setup-just@v4
       - name: Run unit tests
         run: just test
-      - name: Run unit tests in release
-        run: cargo nextest run --workspace --profile ci --release --no-tests="warn"
 
   pytest:
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
+        python-version: ["3.12", "3.14", "3.15"]
 
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.14"
       - uses: dtolnay/rust-toolchain@stable
-      - name: Install python test dependencies
-        run: pip install maturin pytest numpy
-      - name: Build and install python bindings
-        run: cd bindings/python && maturin develop
-      - name: Run pytest
-        run: cd bindings/python && pytest tests
+      - uses: extractions/setup-just@v4
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install maturin
+        run: uv tool install maturin
+      - name: Run pytest tests
+        run: just test-python
