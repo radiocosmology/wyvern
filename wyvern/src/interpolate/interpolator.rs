@@ -262,7 +262,7 @@ mod tests {
     fn interpolate_applies_row_wise_linear_interpolation() {
         let x_in = [0.0, 1.0, 2.0];
         let x_out = [0.5, 1.5];
-        let plan = LinearInterpolator::build(&x_in, &x_out).unwrap();
+        let plan = LinearInterpolator::build(&x_in, &x_out, true).unwrap();
         let interpolator: &dyn Interpolator<f64> = &plan;
         let parallel = ParallelInterpolator::with_interpolator(interpolator);
 
@@ -279,7 +279,7 @@ mod tests {
     fn interpolate_masked_zeros_rows_touching_invalid_samples() {
         let x_in = [0.0, 1.0, 2.0];
         let x_out = [0.5, 1.5];
-        let plan = LinearInterpolator::build(&x_in, &x_out).unwrap();
+        let plan = LinearInterpolator::build(&x_in, &x_out, true).unwrap();
         let interpolator: &dyn Interpolator<f64> = &plan;
         let parallel = ParallelInterpolator::with_interpolator(interpolator);
 
@@ -296,7 +296,7 @@ mod tests {
     fn interpolate_weighted_propagates_positive_weights() {
         let x_in = [0.0, 1.0, 2.0];
         let x_out = [0.5, 1.5];
-        let plan = LinearInterpolator::build(&x_in, &x_out).unwrap();
+        let plan = LinearInterpolator::build(&x_in, &x_out, true).unwrap();
         let interpolator: &dyn Interpolator<f64> = &plan;
         let parallel = ParallelInterpolator::with_interpolator(interpolator);
 
