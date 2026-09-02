@@ -23,7 +23,7 @@ use crate::pyutils::{require_dtype, require_ndim};
 ///     2D float or complex float array to be interpolated. Must be C-contiguous.
 /// y_out
 ///     Optional 2D float or complex float array to store output. Must be C-contiguous.
-///     If `None`, a new array is allocated.
+///     If `None`, a new array is allocated. Default is None.
 ///
 /// Returns
 /// -------
@@ -52,7 +52,7 @@ pub fn interpolate_linear<'py>(
     let x_in_sl = x_in.as_slice()?;
     let x_out_sl = x_out.as_slice()?;
     // construct the interpolation plan
-    let plan = LinearInterpolator::build(x_in_sl, x_out_sl)?;
+    let plan = LinearInterpolator::build(x_in_sl, x_out_sl, true)?;
 
     dispatch_unweighted(py, &plan, y_in, y_out)
 }
@@ -72,10 +72,13 @@ pub fn interpolate_linear<'py>(
 ///     propagating variances and inverting the result. Must be C-contiguous.
 /// y_out
 ///     Optional 2D float or complex float array to store output. Must be C-contiguous.
-///     If `None`, a new array is allocated.
+///     If `None`, a new array is allocated. Default is None.
 /// w_out
 ///     Optional 2D float array to store propagated weights. Must be C-contiguous. If
-///     `None`, a new array is allocated.
+///     `None`, a new array is allocated. Default is None.
+/// propagate_mask
+///     Optional flag to enable or disable input mask propagation into
+///     interpolated samples. Default is True.
 ///
 /// Returns
 /// -------
@@ -93,7 +96,7 @@ pub fn interpolate_linear<'py>(
     gen_stub_pyfunction(module = "wyvern.interpolate")
 )]
 #[pyfunction]
-#[pyo3(signature = (x_in, x_out, y_in, w_in, *, y_out = None, w_out = None))]
+#[pyo3(signature = (x_in, x_out, y_in, w_in, *, y_out = None, w_out = None, propagate_mask = true))]
 pub fn interpolate_linear_weighted<'py>(
     py: Python<'py>,
     x_in: &Bound<'py, PyUntypedArray>,
@@ -102,13 +105,14 @@ pub fn interpolate_linear_weighted<'py>(
     w_in: &Bound<'py, PyUntypedArray>,
     y_out: Option<&Bound<'py, PyUntypedArray>>,
     w_out: Option<&Bound<'py, PyUntypedArray>>,
+    propagate_mask: bool,
 ) -> PyResult<(Py<PyUntypedArray>, Py<PyUntypedArray>)> {
     // validate and extract input samples
     let (x_in, x_out) = validate_extract_samples(py, x_in, x_out)?;
     let x_in_sl = x_in.as_slice()?;
     let x_out_sl = x_out.as_slice()?;
     // construct the interpolation plan
-    let plan = LinearInterpolator::build(x_in_sl, x_out_sl)?;
+    let plan = LinearInterpolator::build(x_in_sl, x_out_sl, propagate_mask)?;
 
     dispatch_weighted(py, &plan, y_in, w_in, y_out, w_out)
 }
@@ -130,7 +134,7 @@ pub fn interpolate_linear_weighted<'py>(
 ///     before evaluating the kernel at each input sample. Default is `1.0`.
 /// y_out
 ///     Optional 2D float or complex float array to store output. Must be C-contiguous.
-///     If `None`, a new array is allocated.
+///     If `None`, a new array is allocated. Default is None.
 ///
 /// Returns
 /// -------
@@ -162,7 +166,7 @@ pub fn interpolate_kernel<'py>(
     let x_out_sl = x_out.as_slice()?;
     // Build the interpolation plan based off of the inner kernel
     let mut boxed = kernel.into_inner();
-    let plan = KernelInterpolator::build(x_in_sl, x_out_sl, &mut *boxed, Some(scale))?;
+    let plan = KernelInterpolator::build(x_in_sl, x_out_sl, &mut *boxed, Some(scale), true)?;
 
     dispatch_unweighted(py, &plan, y_in, y_out)
 }
@@ -187,10 +191,13 @@ pub fn interpolate_kernel<'py>(
 ///     sample spacing before evaluating the kernel at each input sample. Default is `1.0`.
 /// y_out
 ///     Optional 2D float or complex float array to store output. Must be C-contiguous.
-///     If `None`, a new array is allocated.
+///     If `None`, a new array is allocated. Default is None.
 /// w_out
 ///     Optional 2D float array to store propagated weights. Must be C-contiguous. If
-///     `None`, a new array is allocated.
+///     `None`, a new array is allocated. Default is None.
+/// propagate_mask
+///     Optional flag to enable or disable input mask propagation into
+///     interpolated samples. Default is True.
 ///
 /// Returns
 /// -------
@@ -208,7 +215,7 @@ pub fn interpolate_kernel<'py>(
     gen_stub_pyfunction(module = "wyvern.interpolate")
 )]
 #[pyfunction]
-#[pyo3(signature = (x_in, x_out, kernel, y_in, w_in, *, scale = 1.0, y_out = None, w_out = None))]
+#[pyo3(signature = (x_in, x_out, kernel, y_in, w_in, *, scale = 1.0, y_out = None, w_out = None, propagate_mask = true))]
 pub fn interpolate_kernel_weighted<'py>(
     py: Python<'py>,
     x_in: &Bound<'py, PyUntypedArray>,
@@ -219,6 +226,7 @@ pub fn interpolate_kernel_weighted<'py>(
     scale: f64,
     y_out: Option<&Bound<'py, PyUntypedArray>>,
     w_out: Option<&Bound<'py, PyUntypedArray>>,
+    propagate_mask: bool,
 ) -> PyResult<(Py<PyUntypedArray>, Py<PyUntypedArray>)> {
     // validate and extract input samples
     let (x_in, x_out) = validate_extract_samples(py, x_in, x_out)?;
@@ -227,7 +235,8 @@ pub fn interpolate_kernel_weighted<'py>(
 
     // Build the interpolation plan based off of the inner kernel
     let mut boxed = kernel.into_inner();
-    let plan = KernelInterpolator::build(x_in_sl, x_out_sl, &mut *boxed, Some(scale))?;
+    let plan =
+        KernelInterpolator::build(x_in_sl, x_out_sl, &mut *boxed, Some(scale), propagate_mask)?;
 
     dispatch_weighted(py, &plan, y_in, w_in, y_out, w_out)
 }
