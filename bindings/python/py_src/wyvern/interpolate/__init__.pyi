@@ -41,7 +41,7 @@ def interpolate_kernel(
         before evaluating the kernel at each input sample. Default is `1.0`.
     y_out
         Optional 2D float or complex float array to store output. Must be C-contiguous.
-        If `None`, a new array is allocated.
+        If `None`, a new array is allocated. Default is None.
 
     Returns
     -------
@@ -64,6 +64,7 @@ def interpolate_kernel_weighted(
     scale: builtins.float = 1.0,
     y_out: numpy.typing.NDArray[typing.Any] | None = None,
     w_out: numpy.typing.NDArray[typing.Any] | None = None,
+    propagate_mask: builtins.bool = True,
 ) -> tuple[numpy.typing.NDArray[typing.Any], numpy.typing.NDArray[typing.Any]]:
     r"""
     Interpolate a 2D array with corresponding weights using a kernel.
@@ -86,10 +87,13 @@ def interpolate_kernel_weighted(
         sample spacing before evaluating the kernel at each input sample. Default is `1.0`.
     y_out
         Optional 2D float or complex float array to store output. Must be C-contiguous.
-        If `None`, a new array is allocated.
+        If `None`, a new array is allocated. Default is None.
     w_out
         Optional 2D float array to store propagated weights. Must be C-contiguous. If
-        `None`, a new array is allocated.
+        `None`, a new array is allocated. Default is None.
+    propagate_mask
+        Optional flag to enable or disable input mask propagation into
+        interpolated samples. Default is True.
 
     Returns
     -------
@@ -124,7 +128,7 @@ def interpolate_linear(
         2D float or complex float array to be interpolated. Must be C-contiguous.
     y_out
         Optional 2D float or complex float array to store output. Must be C-contiguous.
-        If `None`, a new array is allocated.
+        If `None`, a new array is allocated. Default is None.
 
     Returns
     -------
@@ -145,6 +149,7 @@ def interpolate_linear_weighted(
     *,
     y_out: numpy.typing.NDArray[typing.Any] | None = None,
     w_out: numpy.typing.NDArray[typing.Any] | None = None,
+    propagate_mask: builtins.bool = True,
 ) -> tuple[numpy.typing.NDArray[typing.Any], numpy.typing.NDArray[typing.Any]]:
     r"""
     Linearly interpolate a 2D array with corresponding weights.
@@ -162,10 +167,13 @@ def interpolate_linear_weighted(
         propagating variances and inverting the result. Must be C-contiguous.
     y_out
         Optional 2D float or complex float array to store output. Must be C-contiguous.
-        If `None`, a new array is allocated.
+        If `None`, a new array is allocated. Default is None.
     w_out
         Optional 2D float array to store propagated weights. Must be C-contiguous. If
-        `None`, a new array is allocated.
+        `None`, a new array is allocated. Default is None.
+    propagate_mask
+        Optional flag to enable or disable input mask propagation into
+        interpolated samples. Default is True.
 
     Returns
     -------
