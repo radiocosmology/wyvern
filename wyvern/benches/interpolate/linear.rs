@@ -24,7 +24,7 @@ pub fn make_linear_interpolator(
     let x_in: Vec<f64> = (0..n_in).map(|i| i as f64 / n_in as f64).collect();
     let x_out: Vec<f64> = (0..n_out).map(|i| i as f64 / n_in as f64).collect();
 
-    interpolate::LinearInterpolator::build(&x_in, &x_out)
+    interpolate::LinearInterpolator::build(&x_in, &x_out, true)
 }
 
 fn bench_base_real(

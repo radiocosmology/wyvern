@@ -18,6 +18,8 @@ pub struct LinearInterpolator {
     valid: Vec<f64>,
     /// Number of input samples used by the plan.
     n_in: usize,
+    /// Whether to propagate input masking
+    propagate_mask: bool,
 }
 
 impl LinearInterpolator {
@@ -26,13 +28,14 @@ impl LinearInterpolator {
     /// # Parameters
     /// * ``x_in``: sorted, arbitrary spacing, len >= 2
     /// * ``x_out``: sorted, uniform spacing, len >= 1
+    /// * ``propagate_mask``: if `true`, interpolation only occurs between unflagged samples
     ///
     /// # Returns
     /// [`LinearInterpolator`]
     ///
     /// # Errors
     /// If input sample indices are unsorted or repeated
-    pub fn build(x_in: &[f64], x_out: &[f64]) -> eyre::Result<Self> {
+    pub fn build(x_in: &[f64], x_out: &[f64], propagate_mask: bool) -> eyre::Result<Self> {
         let n_out = x_out.len();
         let n_in = x_in.len();
 
@@ -92,6 +95,7 @@ impl LinearInterpolator {
             c1,
             valid,
             n_in,
+            propagate_mask,
         })
     }
 }
@@ -162,9 +166,13 @@ impl<T: MaybeComplex> Interpolator<T> for LinearInterpolator {
             .for_each(|(((i0, s1), valid), yo)| {
                 assert_unchecked_debug!(*i0 < self.n_in() - 1);
 
-                let mask_a = unsafe { mask_in.get_unchecked(*i0) };
-                let mask_b = unsafe { mask_in.get_unchecked(*i0 + 1) };
-                let mask = valid * mask_a * mask_b;
+                let mask: f64 = if self.propagate_mask {
+                    let mask_a = unsafe { mask_in.get_unchecked(*i0) };
+                    let mask_b = unsafe { mask_in.get_unchecked(*i0 + 1) };
+                    valid * mask_a * mask_b
+                } else {
+                    1.0
+                };
 
                 for (k, yo_k) in yo.iter_mut().enumerate() {
                     let a = unsafe { y_in.get_unchecked(*i0 * stride + k) }.as_();
@@ -218,13 +226,17 @@ impl<T: MaybeComplex> Interpolator<T> for LinearInterpolator {
             .for_each(|((((i0, s1), valid), yo), wo)| {
                 assert_unchecked_debug!(*i0 < self.n_in() - 1);
 
-                let mask_a = unsafe { mask_scratch.get_unchecked(*i0) };
-                let mask_b = unsafe { mask_scratch.get_unchecked(*i0 + 1) };
                 let var_a = unsafe { var_scratch.get_unchecked(*i0) };
                 let var_b = unsafe { var_scratch.get_unchecked(*i0 + 1) };
 
                 // valid only if both plan mask and input mask agree
-                let mask = valid * mask_a * mask_b;
+                let mask: f64 = if self.propagate_mask {
+                    let mask_a = unsafe { mask_scratch.get_unchecked(*i0) };
+                    let mask_b = unsafe { mask_scratch.get_unchecked(*i0 + 1) };
+                    valid * mask_a * mask_b
+                } else {
+                    1.0
+                };
 
                 // propagate weights and masking
                 let s0 = 1.0 - s1;
@@ -257,7 +269,7 @@ mod tests {
 
     #[test]
     fn build_rejects_too_few_input_samples() {
-        let err = LinearInterpolator::build(&[1.0], &[1.0])
+        let err = LinearInterpolator::build(&[1.0], &[1.0], true)
             .err()
             .expect("build should fail with too few input samples");
         assert!(err.to_string().contains("at least 2 input samples"));
@@ -265,7 +277,7 @@ mod tests {
 
     #[test]
     fn build_rejects_empty_output_samples() {
-        let err = LinearInterpolator::build(&[0.0, 1.0], &[])
+        let err = LinearInterpolator::build(&[0.0, 1.0], &[], true)
             .err()
             .expect("build should fail with empty output samples");
         assert!(err.to_string().contains("at least 1 output sample"));
@@ -273,7 +285,7 @@ mod tests {
 
     #[test]
     fn build_rejects_unsorted_or_repeated_inputs() {
-        let err = LinearInterpolator::build(&[1.0, 1.0], &[1.0])
+        let err = LinearInterpolator::build(&[1.0, 1.0], &[1.0], true)
             .err()
             .expect("build should fail with repeated input samples");
         assert!(err.to_string().contains("unsorted or repeated"));
@@ -283,7 +295,7 @@ mod tests {
     fn interp_row_reproduces_linear_ramp() {
         let x_in = [0.0, 1.0, 2.0, 3.0];
         let x_out = [0.5, 1.5, 2.5];
-        let plan = LinearInterpolator::build(&x_in, &x_out).unwrap();
+        let plan = LinearInterpolator::build(&x_in, &x_out, true).unwrap();
 
         assert_eq!(plan.n_in(), 4);
         assert_eq!(plan.len(), 3);
@@ -300,7 +312,7 @@ mod tests {
     fn interp_row_masked_zeros_invalid_samples() {
         let x_in = [0.0, 1.0, 2.0, 3.0];
         let x_out = [0.5, 1.5];
-        let plan = LinearInterpolator::build(&x_in, &x_out).unwrap();
+        let plan = LinearInterpolator::build(&x_in, &x_out, true).unwrap();
 
         let y_in = [0.0_f64, 1.0, 2.0, 3.0];
         // mark second input sample invalid
@@ -316,7 +328,7 @@ mod tests {
     fn interp_row_with_variance_propagates_weights() {
         let x_in = [0.0, 1.0, 2.0];
         let x_out = [0.5];
-        let plan = LinearInterpolator::build(&x_in, &x_out).unwrap();
+        let plan = LinearInterpolator::build(&x_in, &x_out, true).unwrap();
 
         let y_in = [0.0_f64, 2.0, 4.0];
         let weight_in = [1.0_f64, 1.0, 1.0];

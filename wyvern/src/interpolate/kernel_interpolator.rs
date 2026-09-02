@@ -20,6 +20,8 @@ pub struct FixedWidthKernelInterpolator<const N: usize> {
     center_a: Vec<usize>,
     /// Number of input samples managed by the plan.
     n_in: usize,
+    /// Whether to propagate input masking
+    propagate_mask: bool,
 }
 
 impl<const N: usize> FixedWidthKernelInterpolator<N> {
@@ -30,6 +32,7 @@ impl<const N: usize> FixedWidthKernelInterpolator<N> {
     /// * ``x_out``: sorted, uniform spacing, len >= 1
     /// * ``kernel``: kernel function
     /// * ``filter_scale``: kernel point separation downscaling factor
+    /// * ``propagate_mask``: if `true`, interpolation only occurs between unflagged samples
     ///
     /// # Returns
     /// [`FixedWidthKernelInterpolator`]
@@ -42,6 +45,7 @@ impl<const N: usize> FixedWidthKernelInterpolator<N> {
         x_out: &[f64],
         kernel: &dyn Kernel,
         filter_scale: f64,
+        propagate_mask: bool,
     ) -> eyre::Result<Self> {
         let n_in = x_in.len();
         let n_out = x_out.len();
@@ -156,6 +160,7 @@ impl<const N: usize> FixedWidthKernelInterpolator<N> {
             valid,
             center_a,
             n_in,
+            propagate_mask,
         })
     }
 }
@@ -237,9 +242,13 @@ impl<T: MaybeComplex, const N: usize> Interpolator<T> for FixedWidthKernelInterp
 
                 // A sample is valid only if the window centre falls
                 // between two valid samples
-                let mask_a = unsafe { mask_in.get_unchecked(*a_idx) };
-                let mask_b = unsafe { mask_in.get_unchecked(*a_idx + 1) };
-                let mask = valid * mask_a * mask_b;
+                let mask: f64 = if self.propagate_mask {
+                    let mask_a = unsafe { mask_in.get_unchecked(*a_idx) };
+                    let mask_b = unsafe { mask_in.get_unchecked(*a_idx + 1) };
+                    valid * mask_a * mask_b
+                } else {
+                    1.0
+                };
 
                 let msl = unsafe { mask_in.get_unchecked(*i0..*i0 + N) };
 
@@ -324,9 +333,13 @@ impl<T: MaybeComplex, const N: usize> Interpolator<T> for FixedWidthKernelInterp
                 // variance is normalized by the new coefficient sum squared, inverted,
                 // and multiplied with the sample masks
                 // valid only if window center falls between two valid samples
-                let mask_a = unsafe { mask_scratch.get_unchecked(*a_idx) };
-                let mask_b = unsafe { mask_scratch.get_unchecked(*a_idx + 1) };
-                let mask = valid * mask_a * mask_b;
+                let mask: f64 = if self.propagate_mask {
+                    let mask_a = unsafe { mask_scratch.get_unchecked(*a_idx) };
+                    let mask_b = unsafe { mask_scratch.get_unchecked(*a_idx + 1) };
+                    valid * mask_a * mask_b
+                } else {
+                    1.0
+                };
 
                 // accumulate variance, only requires one pass
                 let mut renorm: f64 = 0.0;
@@ -392,6 +405,7 @@ macro_rules! define_dynamic_kernel_plan {
                 /// * ``x_out``: sorted, uniform spacing, len >= 1
                 /// * ``kernel``: kernel function
                 /// * ``filter_scale``: kernel point separation downscaling factor
+                /// * ``propagate_mask``: if `true`, interpolation only occurs between unflagged samples
                 ///
                 /// # Returns
                 /// [`KernelInterpolator`]
@@ -404,6 +418,7 @@ macro_rules! define_dynamic_kernel_plan {
                     x_out: &[f64],
                     kernel: &mut dyn Kernel,
                     filter_scale: Option<f64>,
+                    propagate_mask: bool,
                 ) -> eyre::Result<Self> {
                     // let n_taps = kernel.ntaps();
 
@@ -430,7 +445,7 @@ macro_rules! define_dynamic_kernel_plan {
 
                     $(
                         if required_taps <= $n {
-                            return Ok(Self::[<W $n>](FixedWidthKernelInterpolator::<$n>::build(x_in, x_out, kernel, scale)?));
+                            return Ok(Self::[<W $n>](FixedWidthKernelInterpolator::<$n>::build(x_in, x_out, kernel, scale, propagate_mask)?));
                         }
                     )+
 
@@ -545,7 +560,7 @@ mod tests {
     #[test]
     fn build_rejects_too_few_input_samples() {
         let kernel = BoxcarKernel::build(4);
-        let err = FixedWidthKernelInterpolator::<4>::build(&[0.0, 1.0], &[0.5], &kernel, 1.0)
+        let err = FixedWidthKernelInterpolator::<4>::build(&[0.0, 1.0], &[0.5], &kernel, 1.0, true)
             .err()
             .expect("build should fail with too few samples");
         assert!(err.to_string().contains("need at least N=4 samples"));
@@ -555,7 +570,7 @@ mod tests {
     fn build_rejects_empty_output() {
         let x_in = [0.0, 1.0, 2.0, 3.0];
         let kernel = BoxcarKernel::build(4);
-        let err = FixedWidthKernelInterpolator::<4>::build(&x_in, &[], &kernel, 1.0)
+        let err = FixedWidthKernelInterpolator::<4>::build(&x_in, &[], &kernel, 1.0, true)
             .err()
             .expect("build should fail with empty output");
         assert!(err.to_string().contains("need at least 1 output sample"));
@@ -565,7 +580,7 @@ mod tests {
     fn build_rejects_kernel_wider_than_window() {
         let x_in = [0.0, 1.0, 2.0, 3.0];
         let kernel = BoxcarKernel::build(8);
-        let err = FixedWidthKernelInterpolator::<4>::build(&x_in, &[1.0], &kernel, 1.0)
+        let err = FixedWidthKernelInterpolator::<4>::build(&x_in, &[1.0], &kernel, 1.0, true)
             .err()
             .expect("build should fail when kernel exceeds window");
         assert!(
@@ -579,7 +594,8 @@ mod tests {
         let x_in = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
         let x_out = [2.0, 2.5, 3.0];
         let kernel = BoxcarKernel::build(4);
-        let plan = FixedWidthKernelInterpolator::<4>::build(&x_in, &x_out, &kernel, 1.0).unwrap();
+        let plan =
+            FixedWidthKernelInterpolator::<4>::build(&x_in, &x_out, &kernel, 1.0, true).unwrap();
 
         assert_eq!(plan.n_in(), 6);
         assert_eq!(plan.len(), 3);
@@ -600,7 +616,7 @@ mod tests {
         let x_in: Vec<f64> = (0..10).map(f64::from).collect();
         let x_out = vec![4.5];
         let mut kernel = BoxcarKernel::build(4);
-        let plan = KernelInterpolator::build(&x_in, &x_out, &mut kernel, None).unwrap();
+        let plan = KernelInterpolator::build(&x_in, &x_out, &mut kernel, None, true).unwrap();
 
         assert_eq!(plan.n_in(), 10);
         assert_eq!(plan.len(), 1);
@@ -612,7 +628,7 @@ mod tests {
         let x_in: Vec<f64> = (0..300).map(f64::from).collect();
         let x_out = vec![150.5];
         let mut kernel = BoxcarKernel::build(300);
-        let err = KernelInterpolator::build(&x_in, &x_out, &mut kernel, None)
+        let err = KernelInterpolator::build(&x_in, &x_out, &mut kernel, None, true)
             .err()
             .expect("build should fail when taps exceed max supported width");
         assert!(
