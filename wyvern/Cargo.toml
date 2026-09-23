@@ -6,9 +6,9 @@ readme.workspace = true
 description = "A fast Rust extension for various numerical array algorithms"
 authors = ["Liam Gray <liam.gray@ubc.ca>"]
 license = "GPL-3.0-or-later"
-homepage = "https://github.com/ljgray/wyvern"
-repository = "https://github.com/ljgray/wyvern"
-documentation = "https://ljgray.github.io/wyvern/"
+homepage = "https://github.com/radiocosmology/wyvern"
+repository = "https://github.com/radiocosmology/wyvern"
+documentation = "https://radiocosmology.github.io/wyvern/"
 keywords = ["wyvern"]
 
 [dependencies]

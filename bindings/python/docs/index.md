@@ -3,7 +3,7 @@
 ## Installation {: #installation }
 To install from source:
 ```bash
-pip install git+https://github.com/ljgray/wyvern.git#subdirectory=bindings/python
+pip install git+https://github.com/radiocosmology/wyvern.git#subdirectory=bindings/python
 ```
 or using [uv](https://docs.astral.sh/uv/):
 ```bash
