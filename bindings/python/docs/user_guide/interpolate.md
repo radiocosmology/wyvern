@@ -46,13 +46,13 @@ does a straightforward convolutional kernel interpolation.
 import numpy as np
 import wyvern as wv
 
-xin = np.linspace(0, 1, 100) # input samples
-xout = np.linspace(0, 1, 230) # target samples
+xin = np.linspace(0, 1, 100)  # input samples
+xout = np.linspace(0, 1, 230)  # target samples
 
-yin = np.arange(0, 10, 100)[np.newaxis] # data
-win = np.ones_like(yin)# weights
+yin = np.arange(0, 10, 100)[np.newaxis]  # data
+win = np.ones_like(yin)  # weights
 
-kernel = wv.kernels.LanczosKernel(5) # ntaps = 5
+kernel = wv.kernels.LanczosKernel(5)  # ntaps = 5
 
 yout = wv.interpolate.interpolate_kernel(xin, xout, kernel, yin)
 yout, wout = wv.interpolate.interpolate_linear_weighted(xin, xout, kernel, yin, win)
