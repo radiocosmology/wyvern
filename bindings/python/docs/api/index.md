@@ -7,7 +7,6 @@ Python bindings
 
 ::: wyvern
     options:
-      members:
-        - __all__
+      members: []
       show_root_heading: false
       show_root_toc_entry: false

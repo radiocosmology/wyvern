@@ -59,7 +59,7 @@ test-python: develop
 # --- Docs ---
     
 # build all workspace docs
-doc:
+doc: gen-stubs
     cargo doc --workspace --lib --release --no-deps
 
 # build all workspace docs and open

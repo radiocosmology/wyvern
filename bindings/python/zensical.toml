@@ -15,12 +15,15 @@ repo_name = "ljgray/wyvern"
 
 nav = [
   { "Home" = "index.md" },
+  { "User Guide" = [
+    { Overview = "user_guide/index.md" },
+  ] },
   { "Python API" = [
     { "Overview" = "api/index.md" },
     { "Interpolate" = "api/interpolate.md" },
     { "Kernels" = "api/kernels.md" },
   ] },
-  { "Rust API" = "rust-api.md" },
+  { "Rust API" = "rust/index.html" },
 ]
 
 # extra_css = ["stylesheets/extra.css"]
@@ -38,20 +41,26 @@ direction = "ltr"
 text = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif"
 code = "ui-monospace, 'SFMono-Regular', 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace"
 
+# Palette toggle for automatic mode
+[[project.theme.palette]]
+media = "(prefers-color-scheme)"
+toggle.icon = "lucide/sun-moon"
+toggle.name = "Switch to light mode"
+
 [[project.theme.palette]]
 media = "(prefers-color-scheme: light)"
 scheme = "default"
-primary = "blue"
-accent = "indigo"
-toggle.icon = "material/brightness-7"
+primary = "deep orange"
+accent = "deep purple"
+toggle.icon = "lucide/sun"
 toggle.name = "Switch to dark mode"
 
 [[project.theme.palette]]
 media = "(prefers-color-scheme: dark)"
 scheme = "slate"
-primary = "blue"
-accent = "indigo"
-toggle.icon = "material/brightness-4"
+primary = "indigo"
+accent = "orange"
+toggle.icon = "lucide/moon"
 toggle.name = "Switch to light mode"
 
 project.theme.features = [
@@ -64,7 +73,7 @@ project.theme.features = [
   # "content.footnote.tooltips",
   # "content.tabs.link",
   # "content.tooltips",
-  # "header.autohide",
+  "header.autohide",
   "navigation.expand",
   # "navigation.footer",
   # "navigation.indexes",
@@ -72,7 +81,7 @@ project.theme.features = [
   # "navigation.instant.prefetch",
   # "navigation.instant.progress",
   # "navigation.path",
-  # "navigation.prune",
+  "navigation.prune",
   "navigation.sections",
   "navigation.tabs",
   "navigation.tabs.sticky",
@@ -144,7 +153,9 @@ docstring_style = "numpy"
 show_source = false             # Keep false since source is compiled Rust
 show_root_heading = true
 show_root_toc_entry = true
-merge_init_into_class = true
+show_object_full_path = false
+# heading_level = 3
+merge_init_into_class = false
 show_signature_annotations = false
 show_signature = true
 # show_type_annotations = true
