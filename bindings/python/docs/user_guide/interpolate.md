@@ -1,7 +1,7 @@
 # Interpolate
 
 `wyvern` implements linear and kernel-based interpolation methods, with or without
-weight propagation, supporting both real (f32 and f64) and complex (Complex32 and Comple64)
+weight propagation, supporting both real (f32 and f64) and complex (Complex32 and Complex64)
 types. In both cases, interpolators are implemented to operate inparallel over array rows,
 interpolating along the last axis of a c-contiguous array.
 
@@ -28,9 +28,12 @@ import wyvern as wv
 xin = np.linspace(0, 1, 100)  # input samples
 xout = np.linspace(0, 1, 230)  # target samples
 
-yin = np.arange(0, 10, 100)  # data
-win = np.ones(100)  # weights
+yin = np.arange(0, 10, 100)[np.newaxis]  # data
+win = np.ones_like(yin)  # weights
+```
 
+If no output arrays are passed, they are automatically allocated:
+```python
 yout = wv.interpolate.interpolate_linear(xin, xout, yin)
 yout, wout = wv.interpolate.interpolate_linear_weighted(xin, xout, yin, win)
 ```
@@ -46,11 +49,11 @@ import wyvern as wv
 xin = np.linspace(0, 1, 100) # input samples
 xout = np.linspace(0, 1, 230) # target samples
 
-yin = np.arange(0, 10, 100) # data
-win = np.ones(100) # weights
+yin = np.arange(0, 10, 100)[np.newaxis] # data
+win = np.ones_like(yin)# weights
 
 kernel = wv.kernels.LanczosKernel(5) # ntaps = 5
 
-yout = wv.interpolate.interpolate_kernel(xin, xout, kernelm yin)
+yout = wv.interpolate.interpolate_kernel(xin, xout, kernel, yin)
 yout, wout = wv.interpolate.interpolate_linear_weighted(xin, xout, kernel, yin, win)
 ```
