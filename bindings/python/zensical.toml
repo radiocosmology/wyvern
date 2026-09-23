@@ -1,6 +1,6 @@
 [project]
 site_name = "wyvern"
-site_url = "https://ljgray.github.io/wyvern_py/"
+site_url = "https://radiocosmology.github.io/wyvern_py/"
 # site_description = "Your project description"
 site_author = "Liam Gray"
 
@@ -9,8 +9,8 @@ site_dir = "site"
 
 # copyright = "Copyright &copy; 2026 Your name"
 
-repo_url = "https://github.com/ljgray/wyvern"
-repo_name = "ljgray/wyvern"
+repo_url = "https://github.com/radiocosmology/wyvern"
+repo_name = "radiocosmology/wyvern"
 # edit_uri = "edit/main/docs/"
 
 nav = [

@@ -3,9 +3,9 @@
 **wyvern** provides fast implementations of a variety of algorithms, motivated by
 the requirements of [draco](https://github.com/radiocosmology/draco).
 
-- [Installation](https://ljgray.github.io/wyvern/#installation)
-- [User guide](https://ljgray.github.io/wyvern/user_guide/)
-- [API reference](https://ljgray.github.io/wyvern/api/)
+- [Installation](https://radiocosmology.github.io/wyvern/#installation)
+- [User guide](https://radiocosmology.github.io/wyvern/user_guide/)
+- [API reference](https://radiocosmology.github.io/wyvern/api/)
 
 
 ## Development
