@@ -3,15 +3,10 @@
 **wyvern** provides fast implementations of a variety of algorithms, motivated by
 the requirements of [draco](https://github.com/radiocosmology/draco).
 
-## Bindings
-- [Python](https://github.com/ljgray/wyvern/tree/main/bindings/python)
+- [Installation](https://ljgray.github.io/wyvern/#installation)
+- [User guide](https://ljgray.github.io/wyvern/user_guide/)
+- [API reference](https://ljgray.github.io/wyvern/api/)
 
-## Installation
-
-To install from source:
-```bash
-pip install git+https://github.com/ljgray/wyvern.git#subdirectory=bindings/python
-```
 
 ## Development
 ### Tools

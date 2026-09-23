@@ -147,6 +147,7 @@ project.theme.features = [
 admonition = {}
 pymdownx.details = {}
 pymdownx.superfences = {}
+attr_list = {}
 
 # Python API extractor
 [project.plugins.mkdocstrings.handlers.python]
