@@ -14,7 +14,15 @@ class BoxcarKernel:
     r"""
     Python wrapper around a concrete Rust kernel implementation.
     """
-    def __new__(cls, ntaps: builtins.int) -> BoxcarKernel: ...
+    def __new__(cls, ntaps: builtins.int) -> BoxcarKernel:
+        r"""
+        Create a new kernel wrapper.
+
+        Parameters
+        ----------
+        ntaps
+            Number of kernel taps.
+        """
     def __repr__(self) -> builtins.str: ...
     def evaluate(self, x: builtins.float) -> builtins.float: ...
     def half_width(self) -> builtins.float: ...
@@ -26,7 +34,15 @@ class KaiserBesselKernel:
     r"""
     Python wrapper around a concrete Rust kernel implementation.
     """
-    def __new__(cls, ntaps: builtins.int) -> KaiserBesselKernel: ...
+    def __new__(cls, ntaps: builtins.int) -> KaiserBesselKernel:
+        r"""
+        Create a new kernel wrapper.
+
+        Parameters
+        ----------
+        ntaps
+            Number of kernel taps.
+        """
     def __repr__(self) -> builtins.str: ...
     def evaluate(self, x: builtins.float) -> builtins.float: ...
     def half_width(self) -> builtins.float: ...
@@ -41,7 +57,15 @@ class LanczosKernel:
     r"""
     Python wrapper around a concrete Rust kernel implementation.
     """
-    def __new__(cls, ntaps: builtins.int) -> LanczosKernel: ...
+    def __new__(cls, ntaps: builtins.int) -> LanczosKernel:
+        r"""
+        Create a new kernel wrapper.
+
+        Parameters
+        ----------
+        ntaps
+            Number of kernel taps.
+        """
     def __repr__(self) -> builtins.str: ...
     def evaluate(self, x: builtins.float) -> builtins.float: ...
     def half_width(self) -> builtins.float: ...

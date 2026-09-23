@@ -37,7 +37,14 @@ macro_rules! build_py_kernel {
         )]
         #[pymethods]
         impl $py_name {
+            /// Create a new kernel wrapper.
+            ///
+            /// Parameters
+            /// ----------
+            /// ntaps
+            ///     Number of kernel taps.
             #[new]
+            #[pyo3(signature = (ntaps))]
             fn new(ntaps: usize) -> Self {
                 Self {
                     inner: <$rust_type as Kernel>::build(ntaps),
