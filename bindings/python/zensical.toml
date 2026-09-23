@@ -143,6 +143,11 @@ project.theme.features = [
 # pymdownx.tasklist.custom_checkbox = true
 # pymdownx.tilde = {}
 
+[project.markdown_extensions]
+admonition = {}
+pymdownx.details = {}
+pymdownx.superfences = {}
+
 # Python API extractor
 [project.plugins.mkdocstrings.handlers.python]
 paths = ["py_src/wyvern"]
